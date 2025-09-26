@@ -1,0 +1,5 @@
+{
+  "name": "JSON to Style Dictionary Converter",
+  "description": "A client-side tool to convert a standard JSON design token file into the Style Dictionary format. Upload your JSON, and the app will automatically transform keys like 'fontSize' and 'lineHeight' into Style Dictionary-compliant objects.",
+  "requestFramePermissions": []
+}
