@@ -1,3 +1,4 @@
+
 import { StyleDictionaryToken } from '../types';
 
 const isPlainObject = (value: any): boolean => {
@@ -14,16 +15,23 @@ const findModes = (obj: any, modes: Set<string>): void => {
     return;
   }
 
-  // Heuristic: If an object has a 'value' property that is itself a plain object,
-  // and that inner object does *not* look like a token (e.g., doesn't have its own 'value' key),
+  // Heuristic: If an object has a 'value' or '$value' property that is itself a plain object,
+  // and that inner object does *not* look like a token (e.g., doesn't have its own 'value' or '$value' key),
   // then we assume its keys are mode names.
+  const value = Object.prototype.hasOwnProperty.call(obj, 'value')
+    ? obj.value
+    : Object.prototype.hasOwnProperty.call(obj, '$value')
+    ? obj.$value
+    : undefined;
+
   if (
-    Object.prototype.hasOwnProperty.call(obj, 'value') &&
-    isPlainObject(obj.value) &&
-    !Object.prototype.hasOwnProperty.call(obj.value, 'value')
+    isPlainObject(value) &&
+    !Object.prototype.hasOwnProperty.call(value, 'value') &&
+    !Object.prototype.hasOwnProperty.call(value, '$value')
   ) {
-    Object.keys(obj.value).forEach(key => modes.add(key));
+    Object.keys(value).forEach(key => modes.add(key));
   }
+
 
   // Recurse into child properties.
   for (const key in obj) {
@@ -38,19 +46,30 @@ const findModes = (obj: any, modes: Set<string>): void => {
  * If a mode is provided, it resolves token values for that specific mode.
  * @param {any} obj - The object or value to process.
  * @param {string} [mode] - The specific mode to resolve values for.
+ * @param {string[]} path - The path to the current object in the JSON tree.
  * @returns {any} The transformed object or value.
  */
-const traverseAndTransform = (obj: any, mode?: string): any => {
+const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any => {
   if (!isPlainObject(obj)) {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => traverseAndTransform(item, mode));
+    return obj.map(item => traverseAndTransform(item, mode, path));
   }
 
   let currentObj = { ...obj };
 
+  // Rule: Standardize $value and $type to value and type
+  if (Object.prototype.hasOwnProperty.call(currentObj, '$value')) {
+    currentObj.value = currentObj.$value;
+    delete currentObj.$value;
+  }
+  if (Object.prototype.hasOwnProperty.call(currentObj, '$type')) {
+    currentObj.type = currentObj.$type;
+    delete currentObj.$type;
+  }
+  
   // If a mode is specified, resolve the token's value for that specific mode first.
   if (
     mode &&
@@ -68,32 +87,50 @@ const traverseAndTransform = (obj: any, mode?: string): any => {
 
   if (isToken) {
     // This is a token object, so we process it and stop recursion.
-    const typesToDimension = [
-      'lineHeight',
-      'spacing',
-      'fontSize',
-      'size',
-      'borderRadius',
-    ];
+    const finalToken = { ...currentObj };
+
+    // Rule: Contextual type changes for typography
+    const parentKey = path.length > 1 ? path[path.length - 2] : null;
+    const grandParentKey = path.length > 2 ? path[path.length - 3] : null;
+
+    if (grandParentKey === 'font' && parentKey === 'letter-spacing' && finalToken.type === 'number') {
+        finalToken.type = 'letterSpacing';
+    } else if (grandParentKey === 'font' && parentKey === 'style' && finalToken.type === 'string') {
+        finalToken.type = 'fontStyle';
+    }
     
-    // Rule: If the token's type is in our list, change it to 'dimension'.
-    if (typesToDimension.includes(currentObj.type)) {
-      currentObj.type = 'dimension';
+    // Rule: Pass-through string-based types like fontStyle without further modification.
+    if (finalToken.type === 'fontStyle') {
+      return finalToken;
     }
 
-    // Rule: Add 'px' unit to numeric dimension values. Preserve string values (like '150%').
-    if (currentObj.type === 'dimension' && typeof currentObj.value === 'number') {
-      currentObj.value = `${currentObj.value}px`;
+    // Rule: Correct wrong 'number' type if value is a 'px' string
+    if (finalToken.type === 'number' && typeof finalToken.value === 'string' && finalToken.value.endsWith('px')) {
+      finalToken.type = 'dimension';
+    }
+
+    const typesThatNeedPxUnit = [
+      'dimension',
+      'fontSize',
+      'lineHeight',
+      'borderRadius',
+      'spacing',
+      'letterSpacing',
+    ];
+    
+    // Rule: Add 'px' unit to numeric values for dimension-like types.
+    if (typesThatNeedPxUnit.includes(finalToken.type) && typeof finalToken.value === 'number') {
+      finalToken.value = `${finalToken.value}px`;
     }
     
-    return currentObj;
+    return finalToken;
 
   } else {
     // This is a group of tokens, so we recurse into its properties.
     const newObj: { [key: string]: any } = {};
     for (const key in currentObj) {
       if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
-        newObj[key] = traverseAndTransform(currentObj[key], mode);
+        newObj[key] = traverseAndTransform(currentObj[key], mode, [...path, key]);
       }
     }
     return newObj;
@@ -106,26 +143,40 @@ const traverseAndTransform = (obj: any, mode?: string): any => {
  * @param {string} jsonString - The raw JSON string from the uploaded file.
  * @returns {Record<string, object>} An object where keys are mode names and
  *          values are the transformed Style Dictionary objects.
- * @throws {Error} Throws an error if the JSON string is invalid.
+ * @throws {Error} Throws an error if the JSON string is invalid or the structure is unexpected.
  */
 export const transformJsonToStyleDictionary = (jsonString: string): Record<string, object> => {
-  const parsedJson = JSON.parse(jsonString);
-
-  const modes = new Set<string>();
-  findModes(parsedJson, modes);
-
-  const modeList = Array.from(modes);
-
-  // If no modes were found, perform a single, standard transformation.
-  if (modeList.length === 0) {
-    return { default: traverseAndTransform(parsedJson) };
+  let parsedJson;
+  try {
+    parsedJson = JSON.parse(jsonString);
+  } catch (error) {
+    throw new Error('Invalid JSON: The file could not be parsed. Please check for syntax errors like missing commas or quotes.');
   }
 
-  // If modes were found, create a transformed object for each mode.
-  const result: Record<string, object> = {};
-  for (const mode of modeList) {
-    result[mode] = traverseAndTransform(parsedJson, mode);
+  if (!isPlainObject(parsedJson)) {
+    throw new Error('Invalid Structure: The root of the JSON file must be an object.');
   }
 
-  return result;
+  try {
+    const modes = new Set<string>();
+    findModes(parsedJson, modes);
+
+    const modeList = Array.from(modes);
+
+    // If no modes were found, perform a single, standard transformation.
+    if (modeList.length === 0) {
+      return { default: traverseAndTransform(parsedJson) };
+    }
+
+    // If modes were found, create a transformed object for each mode.
+    const result: Record<string, object> = {};
+    for (const mode of modeList) {
+      result[mode] = traverseAndTransform(parsedJson, mode);
+    }
+
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'An unknown issue occurred.';
+    throw new Error(`Transformation Error: ${message} Please check the structure of your design tokens.`);
+  }
 };
