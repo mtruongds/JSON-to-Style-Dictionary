@@ -1,3 +1,4 @@
+
 import { StyleDictionaryToken } from '../types';
 
 interface FlatToken {
@@ -31,16 +32,39 @@ const flattenTokens = (obj: any, path: string[] = []): FlatToken[] => {
   return tokens;
 };
 
+const camelToKebab = (str: string) => str.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+
 const toCssVariables = (tokensObject: object, mode: string): string => {
   const flatTokens = flattenTokens(tokensObject);
-  const variables = flatTokens.map(({ path, token }) => `  --${path.join('-')}: ${token.value};`).join('\n');
+  const variables = flatTokens.map(({ path, token }) => {
+    if (isPlainObject(token.value)) {
+        // Expand composite tokens (e.g. typography)
+        const valObj = token.value as Record<string, any>;
+        return Object.entries(valObj).map(([prop, val]) => {
+            const kebabProp = camelToKebab(prop);
+            return `  --${path.join('-')}-${kebabProp}: ${val};`;
+        }).join('\n');
+    }
+    return `  --${path.join('-')}: ${token.value};`;
+  }).join('\n');
+  
   const selector = (mode === 'default') ? ':root' : `[data-theme="${mode}"]`;
   return `${selector} {\n${variables}\n}`;
 };
 
 const toScssVariables = (tokensObject: object): string => {
   const flatTokens = flattenTokens(tokensObject);
-  return flatTokens.map(({ path, token }) => `$${path.join('-')}: ${token.value};`).join('\n');
+  return flatTokens.map(({ path, token }) => {
+    if (isPlainObject(token.value)) {
+        // Expand composite tokens
+        const valObj = token.value as Record<string, any>;
+        return Object.entries(valObj).map(([prop, val]) => {
+            const kebabProp = camelToKebab(prop);
+            return `$${path.join('-')}-${kebabProp}: ${val};`;
+        }).join('\n');
+    }
+    return `$${path.join('-')}: ${token.value};`;
+  }).join('\n');
 };
 
 /**

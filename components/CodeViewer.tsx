@@ -7,10 +7,12 @@ interface CodeViewerProps {
 
 const CodeViewer: React.FC<CodeViewerProps> = ({ code }) => {
   return (
-    <div className="bg-slate-900/70 rounded-lg border border-slate-700 max-h-[50vh] overflow-auto">
-      <pre className="p-4 text-sm text-slate-300">
-        <code>{code}</code>
-      </pre>
+    <div className="relative rounded-lg border bg-muted font-mono text-sm shadow-sm overflow-hidden">
+      <div className="max-h-[600px] overflow-auto p-4">
+        <pre className="text-foreground">
+          <code>{code}</code>
+        </pre>
+      </div>
     </div>
   );
 };

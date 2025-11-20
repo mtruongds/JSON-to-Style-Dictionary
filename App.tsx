@@ -8,107 +8,9 @@ import Button from './components/Button';
 import FormatSelector from './components/FormatSelector';
 import { DownloadIcon } from './components/icons/DownloadIcon';
 import { ClipboardIcon } from './components/icons/ClipboardIcon';
-
-const exampleJson = {
-  "color": {
-    "primary": {
-      "500": {
-        "$type": "color",
-        "$value": {
-          "light": "#3b82f6",
-          "dark": "#60a5fa"
-        }
-      }
-    },
-    "neutral": {
-      "100": {
-        "$type": "color",
-        "$value": {
-          "light": "#f3f4f6",
-          "dark": "#1f2937"
-        }
-      },
-      "900": {
-        "$type": "color",
-        "$value": {
-          "light": "#111827",
-          "dark": "#f9fafb"
-        }
-      }
-    }
-  },
-  "font": {
-    "family": {
-      "sans": {
-        "$type": "fontFamily",
-        "$value": "Inter"
-      }
-    },
-    "weight": {
-      "regular": {
-        "$type": "fontWeight",
-        "$value": 400
-      },
-      "bold": {
-        "$type": "fontWeight",
-        "$value": 700
-      }
-    },
-    "size": {
-      "base": {
-        "$type": "fontSize",
-        "$value": 16
-      },
-      "large": {
-        "$type": "fontSize",
-        "$value": 20
-      }
-    },
-    "line-height": {
-      "base": {
-        "$type": "lineHeight",
-        "$value": 24
-      },
-      "large": {
-        "$type": "lineHeight",
-        "$value": 28
-      }
-    }
-  },
-  "spacing": {
-    "1": {
-      "$type": "spacing",
-      "$value": 4
-    },
-    "2": {
-      "$type": "spacing",
-      "$value": 8
-    },
-    "3": {
-      "$type": "spacing",
-      "$value": 12
-    },
-    "4": {
-      "$type": "spacing",
-      "$value": 16
-    }
-  },
-  "radius": {
-    "sm": {
-      "$type": "borderRadius",
-      "$value": 4
-    },
-    "md": {
-      "$type": "borderRadius",
-      "$value": 8
-    },
-    "lg": {
-      "$type": "borderRadius",
-      "$value": 16
-    }
-  }
-};
-
+import { basicTokens } from './exampleTokens';
+import { typographyTokens } from './typographyTokens';
+import { cn } from './lib/utils';
 
 const App: React.FC = () => {
   const [transformedOutputs, setTransformedOutputs] = useState<Record<string, Record<string, string>> | null>(null);
@@ -117,8 +19,17 @@ const App: React.FC = () => {
   const [fileName, setFileName] =useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
+  
+  // New state for input method
+  const [inputType, setInputType] = useState<'upload' | 'paste'>('upload');
+  const [pastedJson, setPastedJson] = useState('');
 
   const processJson = (jsonText: string, sourceFileName: string) => {
+    if (!jsonText || jsonText.trim() === '') {
+        setError('Please provide valid JSON content.');
+        return;
+    }
+
     try {
       const transformedObjects = transformJsonToStyleDictionary(jsonText);
       
@@ -178,11 +89,28 @@ const App: React.FC = () => {
     reader.readAsText(file);
   }, []);
 
-  const handleLoadExample = useCallback(() => {
+  const handlePasteConvert = () => {
+    processJson(pastedJson, 'pasted-tokens.json');
+  };
+
+  const handleLoadBasicExample = useCallback(() => {
     setError(null);
     setCopyStatus('idle');
-    const jsonText = JSON.stringify(exampleJson, null, 2);
-    processJson(jsonText, 'example.json');
+    const jsonText = JSON.stringify(basicTokens, null, 2);
+    // When loading example, we can set view to paste and fill it, or just process it directly.
+    // Let's process directly but populate the paste area for reference if the user switches tabs.
+    setPastedJson(jsonText);
+    setInputType('paste'); 
+    processJson(jsonText, 'basic-tokens.json');
+  }, []);
+
+  const handleLoadTypographyExample = useCallback(() => {
+    setError(null);
+    setCopyStatus('idle');
+    const jsonText = JSON.stringify(typographyTokens, null, 2);
+    setPastedJson(jsonText);
+    setInputType('paste');
+    processJson(jsonText, 'typography-tokens.json');
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -231,6 +159,7 @@ const App: React.FC = () => {
     setError(null);
     setCopyStatus('idle');
     setOutputFormat('json');
+    setPastedJson('');
   };
   
   const modes = transformedOutputs ? Object.keys(transformedOutputs) : [];
@@ -241,100 +170,163 @@ const App: React.FC = () => {
     : '';
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
-      <div className="w-full max-w-4xl mx-auto">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400">JSON to Style Dictionary Converter</h1>
-          <p className="mt-4 text-lg text-slate-400">
-            Upload your design tokens in JSON format to automatically convert them into various formats.
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
+      <div className="w-full max-w-4xl mx-auto space-y-8">
+        <header className="text-center space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            JSON to Style Dictionary
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Convert your design tokens into platform-specific formats instantly.
           </p>
         </header>
 
-        <main className="bg-slate-800 rounded-xl shadow-2xl shadow-cyan-500/10 p-6 transition-all duration-300">
-          {error && (
-            <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-6 text-center">
-              <p className="font-semibold">Encountered an issue:</p>
-              <p className="mt-1 text-sm">{error}</p>
-            </div>
-          )}
-          
-          {!transformedOutputs ? (
-            <>
-              <Dropzone onFileDrop={handleFileDrop} />
-              <div className="text-center mt-4">
-                <p className="text-slate-400">
-                  Don't have a file?{' '}
-                  <button 
-                    onClick={handleLoadExample} 
-                    className="text-cyan-400 hover:text-cyan-300 font-semibold underline focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded"
-                    aria-label="Load an example JSON file"
-                  >
-                    Try our example.
-                  </button>
-                </p>
+        <main className="rounded-xl border bg-card text-card-foreground shadow-sm">
+          <div className="p-6 space-y-6">
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-center">
+                <p className="font-semibold">Encountered an issue</p>
+                <p className="text-sm mt-1 opacity-90">{error}</p>
               </div>
-            </>
-          ) : (
-            <div>
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
-                <div>
-                  <h2 className="text-2xl font-semibold text-slate-100">Conversion Result</h2>
-                  <p className="text-slate-400 mt-1">
-                    Converted <span className="font-semibold text-cyan-400">{fileName}</span>
+            )}
+            
+            {!transformedOutputs ? (
+              <div className="space-y-6">
+                {/* Input Method Switcher */}
+                <div className="grid w-full grid-cols-2 p-1 bg-muted rounded-lg">
+                    <button 
+                        onClick={() => { setInputType('upload'); setError(null); }}
+                        className={cn(
+                            "rounded-md py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            inputType === 'upload' 
+                                ? "bg-background shadow text-foreground" 
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                    >
+                        Upload File
+                    </button>
+                    <button 
+                        onClick={() => { setInputType('paste'); setError(null); }}
+                        className={cn(
+                            "rounded-md py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            inputType === 'paste' 
+                                ? "bg-background shadow text-foreground" 
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                    >
+                        Paste JSON
+                    </button>
+                </div>
+
+                {inputType === 'upload' ? (
+                    <Dropzone onFileDrop={handleFileDrop} />
+                ) : (
+                    <div className="space-y-4">
+                        <textarea 
+                            value={pastedJson}
+                            onChange={(e) => setPastedJson(e.target.value)}
+                            placeholder={`{\n  "color": {\n    "primary": { "$value": "#000000", "$type": "color" }\n  },\n  "typography": {\n    "heading": {\n      "$type": "typography",\n      "$value": {\n        "fontFamily": "Inter",\n        "fontSize": "32px",\n        "fontWeight": "Bold"\n      }\n    }\n  }\n}`}
+                            className="flex min-h-[300px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                            spellCheck={false}
+                        />
+                        <Button 
+                            onClick={handlePasteConvert} 
+                            className="w-full" 
+                            disabled={!pastedJson.trim()}
+                        >
+                            Convert JSON
+                        </Button>
+                    </div>
+                )}
+
+                <div className="flex flex-col items-center gap-2 text-center pt-2 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    Or start with an example
                   </p>
-                </div>
-                <div className="flex gap-2 items-center flex-wrap justify-start md:justify-end">
-                  <Button onClick={handleCopy} variant="secondary" disabled={!activeMode || copyStatus === 'copied'}>
-                    <ClipboardIcon />
-                    {copyStatus === 'copied' ? 'Copied!' : 'Copy'}
-                  </Button>
-                   <Button onClick={handleDownload} disabled={!activeMode}>
-                      <DownloadIcon />
-                      Download
-                   </Button>
-                   <Button onClick={handleReset} variant="secondary">
-                     Convert Another
-                   </Button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="link" 
+                      onClick={handleLoadBasicExample}
+                      className="h-auto p-0 text-primary underline-offset-4 hover:underline"
+                    >
+                      Basic Tokens
+                    </Button>
+                    <span className="text-muted-foreground text-xs">•</span>
+                    <Button 
+                      variant="link"
+                      onClick={handleLoadTypographyExample}
+                      className="h-auto p-0 text-primary underline-offset-4 hover:underline"
+                    >
+                      Typography Tokens
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              <div className="mb-4">
-                <FormatSelector
-                  options={FORMATS.map(({value, label}) => ({value, label}))}
-                  value={outputFormat}
-                  onChange={(value) => { setOutputFormat(value); setCopyStatus('idle'); }}
-                />
-              </div>
-
-              {showTabs && (
-                <div className="border-b border-slate-700 mb-4">
-                  <nav className="-mb-px flex gap-6" aria-label="Tabs">
-                    {modes.map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setActiveMode(mode)}
-                        className={`${
-                          activeMode === mode
-                            ? 'border-cyan-400 text-cyan-400'
-                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'
-                        } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors focus:outline-none`}
-                        aria-current={activeMode === mode ? 'page' : undefined}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </nav>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-4 border-b">
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-semibold tracking-tight">Conversion Result</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Source: <span className="font-medium text-foreground">{fileName}</span>
+                    </p>
+                  </div>
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <Button onClick={handleCopy} variant="secondary" disabled={!activeMode || copyStatus === 'copied'}>
+                      <ClipboardIcon />
+                      {copyStatus === 'copied' ? 'Copied!' : 'Copy'}
+                    </Button>
+                     <Button onClick={handleDownload} disabled={!activeMode}>
+                        <DownloadIcon />
+                        Download
+                     </Button>
+                     <Button onClick={handleReset} variant="ghost">
+                       Convert Another
+                     </Button>
+                  </div>
                 </div>
-              )}
 
-              {activeMode && (
-                <CodeViewer code={currentCode} />
-              )}
-            </div>
-          )}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
+                    <FormatSelector
+                      options={FORMATS.map(({value, label}) => ({value, label}))}
+                      value={outputFormat}
+                      onChange={(value) => { setOutputFormat(value); setCopyStatus('idle'); }}
+                    />
+                  </div>
+
+                  {showTabs && (
+                    <div className="w-full overflow-x-auto">
+                      <div className="flex space-x-1 rounded-lg bg-muted p-1">
+                        {modes.map((mode) => (
+                          <button
+                            key={mode}
+                            onClick={() => setActiveMode(mode)}
+                            className={cn(
+                              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                              activeMode === mode
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+                            )}
+                          >
+                            {mode}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeMode && (
+                    <CodeViewer code={currentCode} />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </main>
-        <footer className="text-center mt-8 text-slate-500 text-sm">
-            <p>Client-side processing. Your files never leave your browser.</p>
+
+        <footer className="text-center text-sm text-muted-foreground">
+          <p>Processed securely in your browser.</p>
         </footer>
       </div>
     </div>

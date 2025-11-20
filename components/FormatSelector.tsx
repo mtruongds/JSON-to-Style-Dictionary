@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { cn } from '../lib/utils';
 
 interface FormatOption {
   value: string;
@@ -14,21 +15,23 @@ interface FormatSelectorProps {
 
 const FormatSelector: React.FC<FormatSelectorProps> = ({ options, value, onChange }) => {
   return (
-    <div>
-      <label id="format-group-label" className="block text-sm font-medium text-slate-400 mb-2">Output Format</label>
-      <div className="flex flex-wrap sm:flex-nowrap gap-1 bg-slate-900/70 p-1 rounded-lg border border-slate-700" role="group" aria-labelledby="format-group-label">
+    <div className="space-y-3">
+      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-2 mr-2">
+        Output Format
+      </label>
+      <div className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-full sm:w-auto">
         {options.map((option) => {
           const isSelected = value === option.value;
-          const baseClasses = "flex-grow px-3 py-2 text-sm font-semibold rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800 transition-all duration-200 text-center";
-          const variantClasses = isSelected
-            ? "bg-cyan-500 text-slate-900 shadow-lg"
-            : "bg-transparent text-slate-300 hover:bg-slate-700";
-          
           return (
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className={`${baseClasses} ${variantClasses}`}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 flex-1 sm:flex-none",
+                isSelected 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "hover:bg-background/50 hover:text-foreground"
+              )}
               aria-pressed={isSelected}
             >
               {option.label}

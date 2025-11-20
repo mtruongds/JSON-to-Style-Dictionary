@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { UploadIcon } from './icons/UploadIcon';
+import { cn } from '../lib/utils';
 
 interface DropzoneProps {
   onFileDrop: (file: File) => void;
@@ -46,13 +47,14 @@ const Dropzone: React.FC<DropzoneProps> = ({ onFileDrop }) => {
     }
   };
 
-  const dragOverClasses = isDraggingOver
-    ? 'border-cyan-400 bg-slate-700/50 ring-4 ring-cyan-500/20'
-    : 'border-slate-600 hover:border-cyan-500 hover:bg-slate-700/30';
-
   return (
     <div
-      className={`relative flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 ${dragOverClasses}`}
+      className={cn(
+        "relative flex flex-col items-center justify-center p-12 text-center rounded-xl border-2 border-dashed cursor-pointer transition-colors duration-200",
+        isDraggingOver 
+          ? "border-primary bg-muted/50" 
+          : "border-muted-foreground/25 hover:border-primary hover:bg-muted/25"
+      )}
       onDragEnter={handleDragIn}
       onDragLeave={handleDragOut}
       onDragOver={handleDragIn}
@@ -66,12 +68,16 @@ const Dropzone: React.FC<DropzoneProps> = ({ onFileDrop }) => {
         className="hidden"
         onChange={handleFileChange}
       />
-      <div className="flex flex-col items-center justify-center text-slate-400">
-        <UploadIcon />
-        <p className="mt-4 text-lg font-semibold">
-          <span className="text-cyan-400">Click to upload</span> or drag and drop
+      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+        <div className="p-4 rounded-full bg-muted mb-2">
+          <UploadIcon />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground">
+          Upload Tokens
+        </h3>
+        <p className="text-sm">
+          Drag and drop or click to select a JSON file
         </p>
-        <p className="mt-1 text-sm">Upload a JSON file to begin conversion</p>
       </div>
     </div>
   );
