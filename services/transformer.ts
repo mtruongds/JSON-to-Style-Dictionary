@@ -270,6 +270,19 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
       finalToken.value = `${finalToken.value}px`;
     }
 
+    // Rule: Quote fontFamily values if they are not aliases
+    if (finalToken.type === 'fontFamily' && typeof finalToken.value === 'string') {
+        const val = finalToken.value;
+        // Check if it starts with { (alias)
+        const isAlias = val.trim().startsWith('{');
+        if (!isAlias) {
+             const hasQuotes = (val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'));
+             if (!hasQuotes) {
+                 finalToken.value = `'${val}'`;
+             }
+        }
+    }
+
     // Rule: Handle composite typography tokens (supports both 'typography' and 'textStyle')
     if ((finalToken.type === 'typography' || finalToken.type === 'textStyle') && isPlainObject(finalToken.value)) {
         const typographyValue = finalToken.value as Record<string, any>;
@@ -281,6 +294,20 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
                     typographyValue[prop] = `${typographyValue[prop]}px`;
                 }
             }
+        }
+
+        // Handle fontFamily in composite token
+        if (Object.prototype.hasOwnProperty.call(typographyValue, 'fontFamily')) {
+             const val = typographyValue['fontFamily'];
+             if (typeof val === 'string') {
+                 const isAlias = val.trim().startsWith('{');
+                 if (!isAlias) {
+                     const hasQuotes = (val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'));
+                     if (!hasQuotes) {
+                         typographyValue['fontFamily'] = `'${val}'`;
+                     }
+                 }
+             }
         }
     }
     

@@ -4,7 +4,7 @@ export const typographyTokens = {
     "h1": {
       "$type": "typography",
       "$value": {
-        "fontFamily": "Inter",
+        "fontFamily": "'Inter'",
         "fontWeight": "Bold",
         "fontSize": 32,
         "lineHeight": 40,
@@ -14,7 +14,7 @@ export const typographyTokens = {
     "body": {
       "$type": "typography",
       "$value": {
-        "fontFamily": "Inter",
+        "fontFamily": "'Inter'",
         "fontWeight": "Regular",
         "fontSize": 16,
         "lineHeight": 24
@@ -25,7 +25,7 @@ export const typographyTokens = {
     "caption": {
       "$type": "textStyle",
       "$value": {
-        "fontFamily": "Inter",
+        "fontFamily": "'Inter'",
         "fontWeight": 400,
         "fontSize": 12,
         "lineHeight": 16,
@@ -35,7 +35,7 @@ export const typographyTokens = {
     "button": {
       "$type": "textStyle",
       "$value": {
-        "fontFamily": "Inter",
+        "fontFamily": "'Inter'",
         "fontWeight": 600,
         "fontSize": 14,
         "lineHeight": 20,
