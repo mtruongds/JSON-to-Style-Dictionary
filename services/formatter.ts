@@ -10,6 +10,19 @@ const isPlainObject = (value: any): boolean => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
 
+// Helper to strip top-level keys (flattens one level deep)
+const removeTopLevelKeys = (obj: any): any => {
+  if (!isPlainObject(obj)) return obj;
+  const newObj: any = {};
+  Object.keys(obj).forEach(key => {
+    const value = obj[key];
+    if (isPlainObject(value)) {
+      Object.assign(newObj, value);
+    }
+  });
+  return newObj;
+};
+
 const flattenTokens = (obj: any, path: string[] = []): FlatToken[] => {
   let tokens: FlatToken[] = [];
   for (const key in obj) {
@@ -37,15 +50,17 @@ const camelToKebab = (str: string) => str.replace(/[A-Z]/g, letter => `-${letter
 const toCssVariables = (tokensObject: object, mode: string): string => {
   const flatTokens = flattenTokens(tokensObject);
   const variables = flatTokens.map(({ path, token }) => {
+    const namePath = path;
+    
     if (isPlainObject(token.value)) {
         // Expand composite tokens (e.g. typography)
         const valObj = token.value as Record<string, any>;
         return Object.entries(valObj).map(([prop, val]) => {
             const kebabProp = camelToKebab(prop);
-            return `  --${path.join('-')}-${kebabProp}: ${val};`;
+            return `  --${namePath.join('-')}-${kebabProp}: ${val};`;
         }).join('\n');
     }
-    return `  --${path.join('-')}: ${token.value};`;
+    return `  --${namePath.join('-')}: ${token.value};`;
   }).join('\n');
   
   const selector = (mode === 'default') ? ':root' : `[data-theme="${mode}"]`;
@@ -55,15 +70,17 @@ const toCssVariables = (tokensObject: object, mode: string): string => {
 const toScssVariables = (tokensObject: object): string => {
   const flatTokens = flattenTokens(tokensObject);
   return flatTokens.map(({ path, token }) => {
+    const namePath = path;
+
     if (isPlainObject(token.value)) {
         // Expand composite tokens
         const valObj = token.value as Record<string, any>;
         return Object.entries(valObj).map(([prop, val]) => {
             const kebabProp = camelToKebab(prop);
-            return `$${path.join('-')}-${kebabProp}: ${val};`;
+            return `$${namePath.join('-')}-${kebabProp}: ${val};`;
         }).join('\n');
     }
-    return `$${path.join('-')}: ${token.value};`;
+    return `$${namePath.join('-')}: ${token.value};`;
   }).join('\n');
 };
 
@@ -113,18 +130,30 @@ export const FORMATS = [
 export const formatTokensByMode = (
     tokensObject: object, 
     format: 'json' | 'css' | 'scss' | 'w3c', 
-    mode: string
+    mode: string,
+    excludeParentKeys: boolean = false
 ): string => {
+  
+  let dataToFormat = tokensObject;
+
+  // Apply structural flattening if excludeParentKeys is requested.
+  // This affects all formats:
+  // - JSON/W3C: The output object structure is flattened.
+  // - CSS/SCSS: The variable names are shorter because the root path segment is gone.
+  if (excludeParentKeys) {
+    dataToFormat = removeTopLevelKeys(dataToFormat);
+  }
+
   switch (format) {
     case 'css':
-      return toCssVariables(tokensObject, mode);
+      return toCssVariables(dataToFormat, mode);
     case 'scss':
-      return toScssVariables(tokensObject);
+      return toScssVariables(dataToFormat);
     case 'w3c':
-        const w3cObject = traverseAndRenameToW3C(tokensObject);
+        const w3cObject = traverseAndRenameToW3C(dataToFormat);
         return JSON.stringify(w3cObject, null, 2);
     case 'json':
     default:
-      return JSON.stringify(tokensObject, null, 2);
+      return JSON.stringify(dataToFormat, null, 2);
   }
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { transformJsonToStyleDictionary } from './services/transformer';
 import { formatTokensByMode, FORMATS } from './services/formatter';
 import Dropzone from './components/Dropzone';
@@ -13,12 +13,15 @@ import { typographyTokens } from './typographyTokens';
 import { cn } from './lib/utils';
 
 const App: React.FC = () => {
-  const [transformedOutputs, setTransformedOutputs] = useState<Record<string, Record<string, string>> | null>(null);
+  // Store the raw transformed object instead of pre-calculated strings
+  const [transformedData, setTransformedData] = useState<Record<string, object> | null>(null);
+  
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [outputFormat, setOutputFormat] = useState('json');
   const [fileName, setFileName] =useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
+  const [excludeParentKeys, setExcludeParentKeys] = useState(true);
   
   // New state for input method
   const [inputType, setInputType] = useState<'upload' | 'paste'>('upload');
@@ -33,36 +36,39 @@ const App: React.FC = () => {
     try {
       const transformedObjects = transformJsonToStyleDictionary(jsonText);
       
-      const outputs: Record<string, Record<string, string>> = {};
-      let firstMode: string | null = null;
-      
-      for (const mode in transformedObjects) {
-        if (!firstMode) {
-          firstMode = mode;
-        }
-        outputs[mode] = {};
-        for (const format of FORMATS) {
-            outputs[mode][format.value] = formatTokensByMode(
-                transformedObjects[mode],
-                format.value as 'json' | 'css' | 'scss' | 'w3c',
-                mode
-            );
-        }
-      }
+      setTransformedData(transformedObjects);
 
-      setTransformedOutputs(outputs);
+      const modes = Object.keys(transformedObjects);
+      const firstMode = modes.length > 0 ? modes[0] : null;
+
       setActiveMode(firstMode);
       setFileName(sourceFileName);
-      setOutputFormat('json');
+      // Reset formatting options when loading new file, but maybe keep excludeParentKeys if desired.
+      // Let's keep outputFormat as is.
       setError(null); // Clear any previous errors on success
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during processing.';
       setError(errorMessage);
-      setTransformedOutputs(null);
+      setTransformedData(null);
       setActiveMode(null);
       setFileName(null);
     }
   }
+
+  // Dynamically calculate the code string based on current state
+  const currentCode = useMemo(() => {
+    if (!transformedData || !activeMode) return '';
+    
+    const modeData = transformedData[activeMode];
+    if (!modeData) return '';
+
+    return formatTokensByMode(
+        modeData,
+        outputFormat as 'json' | 'css' | 'scss' | 'w3c',
+        activeMode,
+        excludeParentKeys
+    );
+  }, [transformedData, activeMode, outputFormat, excludeParentKeys]);
 
   const handleFileDrop = useCallback((file: File) => {
     setError(null);
@@ -97,8 +103,6 @@ const App: React.FC = () => {
     setError(null);
     setCopyStatus('idle');
     const jsonText = JSON.stringify(basicTokens, null, 2);
-    // When loading example, we can set view to paste and fill it, or just process it directly.
-    // Let's process directly but populate the paste area for reference if the user switches tabs.
     setPastedJson(jsonText);
     setInputType('paste'); 
     processJson(jsonText, 'basic-tokens.json');
@@ -114,15 +118,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleDownload = useCallback(() => {
-    if (!transformedOutputs || !fileName || !activeMode) return;
+    if (!currentCode || !fileName || !activeMode) return;
 
     const currentFormatInfo = FORMATS.find(f => f.value === outputFormat);
     if (!currentFormatInfo) return;
 
-    const contentToDownload = transformedOutputs[activeMode]?.[outputFormat];
-    if (!contentToDownload) return;
-
-    const blob = new Blob([contentToDownload], { type: currentFormatInfo.mime });
+    const blob = new Blob([currentCode], { type: currentFormatInfo.mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -136,38 +137,32 @@ const App: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [transformedOutputs, fileName, activeMode, outputFormat]);
+  }, [currentCode, fileName, activeMode, outputFormat]);
 
   const handleCopy = useCallback(() => {
-    if (!transformedOutputs || !activeMode || copyStatus === 'copied') return;
+    if (!currentCode || copyStatus === 'copied') return;
 
-    const contentToCopy = transformedOutputs[activeMode]?.[outputFormat];
-    if (!contentToCopy) return;
-
-    navigator.clipboard.writeText(contentToCopy).then(() => {
+    navigator.clipboard.writeText(currentCode).then(() => {
         setCopyStatus('copied');
         setTimeout(() => setCopyStatus('idle'), 2000);
     }).catch(err => {
         console.error('Failed to copy: ', err);
     });
-  }, [transformedOutputs, activeMode, outputFormat, copyStatus]);
+  }, [currentCode, copyStatus]);
 
   const handleReset = () => {
-    setTransformedOutputs(null);
+    setTransformedData(null);
     setActiveMode(null);
     setFileName(null);
     setError(null);
     setCopyStatus('idle');
     setOutputFormat('json');
     setPastedJson('');
+    setExcludeParentKeys(true);
   };
   
-  const modes = transformedOutputs ? Object.keys(transformedOutputs) : [];
+  const modes = transformedData ? Object.keys(transformedData) : [];
   const showTabs = !(modes.length === 1 && modes[0] === 'default');
-
-  const currentCode = (activeMode && transformedOutputs && transformedOutputs[activeMode]?.[outputFormat]) 
-    ? transformedOutputs[activeMode][outputFormat] 
-    : '';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
@@ -190,7 +185,7 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {!transformedOutputs ? (
+            {!transformedData ? (
               <div className="space-y-6">
                 {/* Input Method Switcher */}
                 <div className="grid w-full grid-cols-2 p-1 bg-muted rounded-lg">
@@ -287,11 +282,13 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
+                  <div className="flex flex-col w-full">
                     <FormatSelector
                       options={FORMATS.map(({value, label}) => ({value, label}))}
                       value={outputFormat}
                       onChange={(value) => { setOutputFormat(value); setCopyStatus('idle'); }}
+                      excludeParentKeys={excludeParentKeys}
+                      onExcludeParentKeysChange={setExcludeParentKeys}
                     />
                   </div>
 
