@@ -7,7 +7,6 @@ import CodeViewer from './components/CodeViewer';
 import Button from './components/Button';
 import FormatSelector from './components/FormatSelector';
 import { DownloadIcon } from './components/icons/DownloadIcon';
-import { ClipboardIcon } from './components/icons/ClipboardIcon';
 import { basicTokens } from './exampleTokens';
 import { typographyTokens } from './typographyTokens';
 import { cn } from './lib/utils';
@@ -267,10 +266,6 @@ const App: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex gap-2 items-center flex-wrap">
-                    <Button onClick={handleCopy} variant="secondary" disabled={!activeMode || copyStatus === 'copied'}>
-                      <ClipboardIcon />
-                      {copyStatus === 'copied' ? 'Copied!' : 'Copy'}
-                    </Button>
                      <Button onClick={handleDownload} disabled={!activeMode}>
                         <DownloadIcon />
                         Download
@@ -314,7 +309,11 @@ const App: React.FC = () => {
                   )}
 
                   {activeMode && (
-                    <CodeViewer code={currentCode} />
+                    <CodeViewer 
+                        code={currentCode} 
+                        onCopy={handleCopy}
+                        copyStatus={copyStatus}
+                    />
                   )}
                 </div>
               </div>
