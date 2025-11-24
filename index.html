@@ -112,6 +112,45 @@
           --input: 217.2 32.6% 17.5%;
           --ring: 224.3 76.3% 48%;
         }
+
+        /* Modern Scrollbar Styles */
+        .modern-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: transparent transparent;
+          transition: scrollbar-color 0.3s ease;
+        }
+
+        /* Show scrollbar on hover or when scrolling active */
+        .modern-scrollbar:hover,
+        .modern-scrollbar.is-scrolling {
+          scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
+        }
+
+        .modern-scrollbar::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        .modern-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .modern-scrollbar::-webkit-scrollbar-thumb {
+          background-color: transparent;
+          border-radius: 9999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+          transition: background-color 0.3s ease;
+        }
+
+        .modern-scrollbar:hover::-webkit-scrollbar-thumb,
+        .modern-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
+          background-color: hsl(var(--muted-foreground) / 0.5);
+        }
+
+        .modern-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: hsl(var(--muted-foreground) / 0.8) !important;
+        }
       }
      
       @layer base {
