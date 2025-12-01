@@ -249,6 +249,11 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
         finalToken.type = 'fontStyle';
     }
     
+    // Transform 'size' type to 'dimension'
+    if (finalToken.type === 'size') {
+        finalToken.type = 'dimension';
+    }
+    
     if (finalToken.type === 'fontStyle') {
       return finalToken;
     }
