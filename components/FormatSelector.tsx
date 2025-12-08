@@ -14,6 +14,8 @@ interface FormatSelectorProps {
   onExcludeParentKeysChange: (value: boolean) => void;
   keepFigmaFormat: boolean;
   onKeepFigmaFormatChange: (value: boolean) => void;
+  prefix: string;
+  onPrefixChange: (value: string) => void;
 }
 
 interface SwitchProps {
@@ -61,7 +63,9 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
   excludeParentKeys,
   onExcludeParentKeysChange,
   keepFigmaFormat,
-  onKeepFigmaFormatChange
+  onKeepFigmaFormatChange,
+  prefix,
+  onPrefixChange
 }) => {
   return (
     <div className="flex flex-col gap-3 w-full">
@@ -93,7 +97,7 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
           })}
         </div>
 
-        <div className="flex flex-row flex-wrap gap-6 pl-1">
+        <div className="flex flex-row flex-wrap items-center gap-6 pl-1">
             <Switch
               id="keepFigmaFormat"
               label="Keep Figma Format"
@@ -107,6 +111,20 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
               checked={excludeParentKeys}
               onCheckedChange={onExcludeParentKeysChange}
             />
+
+            <div className="flex items-center gap-2">
+                <label htmlFor="prefixInput" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Prefix
+                </label>
+                <input 
+                    id="prefixInput"
+                    type="text" 
+                    value={prefix}
+                    onChange={(e) => onPrefixChange(e.target.value)}
+                    placeholder="e.g. ds"
+                    className="flex h-8 w-24 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+            </div>
         </div>
       </div>
     </div>

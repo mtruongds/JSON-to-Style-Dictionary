@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
   const [excludeParentKeys, setExcludeParentKeys] = useState(true);
   const [keepFigmaFormat, setKeepFigmaFormat] = useState(false);
+  const [prefix, setPrefix] = useState('');
   
   // New state for input method
   const [inputType, setInputType] = useState<'upload' | 'paste'>('upload');
@@ -79,9 +80,10 @@ const App: React.FC = () => {
         modeData,
         outputFormat as 'json' | 'css' | 'scss' | 'w3c',
         activeMode,
-        excludeParentKeys
+        excludeParentKeys,
+        prefix
     );
-  }, [transformedData, activeMode, outputFormat, excludeParentKeys]);
+  }, [transformedData, activeMode, outputFormat, excludeParentKeys, prefix]);
 
   const handleFileDrop = useCallback((file: File) => {
     setError(null);
@@ -174,6 +176,7 @@ const App: React.FC = () => {
     setPastedJson('');
     setExcludeParentKeys(true);
     setKeepFigmaFormat(false);
+    setPrefix('');
   };
   
   const modes = transformedData ? Object.keys(transformedData) : [];
@@ -302,6 +305,8 @@ const App: React.FC = () => {
                       onExcludeParentKeysChange={setExcludeParentKeys}
                       keepFigmaFormat={keepFigmaFormat}
                       onKeepFigmaFormatChange={handleKeepFigmaFormatChange}
+                      prefix={prefix}
+                      onPrefixChange={setPrefix}
                     />
                   </div>
 

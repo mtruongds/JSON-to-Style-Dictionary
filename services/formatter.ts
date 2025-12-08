@@ -27,7 +27,10 @@ const getFigmaColorStrings = (val: any) => {
     const r = Math.round(components[0] * 255);
     const g = Math.round(components[1] * 255);
     const b = Math.round(components[2] * 255);
-    const a = (alpha !== undefined) ? alpha : 1;
+    let a = (alpha !== undefined) ? alpha : 1;
+    
+    // Ensure alpha is a clean number (max 2 decimals)
+    a = Math.round(a * 100) / 100;
 
     const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
     
@@ -79,16 +82,17 @@ const flattenTokens = (obj: any, path: string[] = []): FlatToken[] => {
 
 const camelToKebab = (str: string) => str.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
 
-const toCssVariables = (tokensObject: object, mode: string): string => {
+const toCssVariables = (tokensObject: object, mode: string, prefix: string): string => {
   const flatTokens = flattenTokens(tokensObject);
   const variables = flatTokens.map(({ path, token }) => {
-    const namePath = path;
-    
+    let name = path.join('-');
+    if (prefix) name = `${prefix}-${name}`;
+
     // NEW: Handle Figma Color Objects specially
     if (isFigmaColorValue(token.value)) {
         const { hex, rgba } = getFigmaColorStrings(token.value);
         // Returns two lines: standard hex variable and -rgba variable
-        return `  --${namePath.join('-')}: ${hex};\n  --${namePath.join('-')}-rgba: ${rgba};`;
+        return `  --${name}: ${hex};\n  --${name}-rgba: ${rgba};`;
     }
     
     if (isPlainObject(token.value)) {
@@ -96,25 +100,26 @@ const toCssVariables = (tokensObject: object, mode: string): string => {
         const valObj = token.value as Record<string, any>;
         return Object.entries(valObj).map(([prop, val]) => {
             const kebabProp = camelToKebab(prop);
-            return `  --${namePath.join('-')}-${kebabProp}: ${val};`;
+            return `  --${name}-${kebabProp}: ${val};`;
         }).join('\n');
     }
-    return `  --${namePath.join('-')}: ${token.value};`;
+    return `  --${name}: ${token.value};`;
   }).join('\n');
   
   const selector = (mode === 'default') ? ':root' : `[data-theme="${mode}"]`;
   return `${selector} {\n${variables}\n}`;
 };
 
-const toScssVariables = (tokensObject: object): string => {
+const toScssVariables = (tokensObject: object, prefix: string): string => {
   const flatTokens = flattenTokens(tokensObject);
   return flatTokens.map(({ path, token }) => {
-    const namePath = path;
+    let name = path.join('-');
+    if (prefix) name = `${prefix}-${name}`;
 
     // NEW: Handle Figma Color Objects specially
     if (isFigmaColorValue(token.value)) {
         const { hex, rgba } = getFigmaColorStrings(token.value);
-        return `$${namePath.join('-')}: ${hex};\n$${namePath.join('-')}-rgba: ${rgba};`;
+        return `$${name}: ${hex};\n$${name}-rgba: ${rgba};`;
     }
 
     if (isPlainObject(token.value)) {
@@ -122,10 +127,10 @@ const toScssVariables = (tokensObject: object): string => {
         const valObj = token.value as Record<string, any>;
         return Object.entries(valObj).map(([prop, val]) => {
             const kebabProp = camelToKebab(prop);
-            return `$${namePath.join('-')}-${kebabProp}: ${val};`;
+            return `$${name}-${kebabProp}: ${val};`;
         }).join('\n');
     }
-    return `$${namePath.join('-')}: ${token.value};`;
+    return `$${name}: ${token.value};`;
   }).join('\n');
 };
 
@@ -176,7 +181,8 @@ export const formatTokensByMode = (
     tokensObject: object, 
     format: 'json' | 'css' | 'scss' | 'w3c', 
     mode: string,
-    excludeParentKeys: boolean = false
+    excludeParentKeys: boolean = false,
+    prefix: string = ''
 ): string => {
   
   let dataToFormat = tokensObject;
@@ -191,9 +197,9 @@ export const formatTokensByMode = (
 
   switch (format) {
     case 'css':
-      return toCssVariables(dataToFormat, mode);
+      return toCssVariables(dataToFormat, mode, prefix);
     case 'scss':
-      return toScssVariables(dataToFormat);
+      return toScssVariables(dataToFormat, prefix);
     case 'w3c':
         const w3cObject = traverseAndRenameToW3C(dataToFormat);
         return JSON.stringify(w3cObject, null, 2);
