@@ -1,4 +1,3 @@
-
 import { StyleDictionaryToken } from '../types';
 
 interface FlatToken {
@@ -8,6 +7,39 @@ interface FlatToken {
 
 const isPlainObject = (value: any): boolean => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+// Check for Figma color object structure
+const isFigmaColorValue = (val: any): boolean => {
+  return isPlainObject(val) && 
+         'components' in val && 
+         Array.isArray(val.components) &&
+         ('colorSpace' in val || 'alpha' in val);
+};
+
+const getFigmaColorStrings = (val: any) => {
+    const { components, alpha } = val;
+    // Safety check
+    if (!Array.isArray(components) || components.length < 3) {
+        return { hex: '#000000', rgba: 'rgba(0, 0, 0, 1)' };
+    }
+    
+    const r = Math.round(components[0] * 255);
+    const g = Math.round(components[1] * 255);
+    const b = Math.round(components[2] * 255);
+    const a = (alpha !== undefined) ? alpha : 1;
+
+    const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
+    
+    let hex = val.hex;
+    // If hex is missing or empty, calculate it
+    if (!hex) {
+        hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+    
+    const rgba = `rgba(${r}, ${g}, ${b}, ${a})`;
+    
+    return { hex, rgba };
 };
 
 // Helper to strip top-level keys (flattens one level deep)
@@ -52,6 +84,13 @@ const toCssVariables = (tokensObject: object, mode: string): string => {
   const variables = flatTokens.map(({ path, token }) => {
     const namePath = path;
     
+    // NEW: Handle Figma Color Objects specially
+    if (isFigmaColorValue(token.value)) {
+        const { hex, rgba } = getFigmaColorStrings(token.value);
+        // Returns two lines: standard hex variable and -rgba variable
+        return `  --${namePath.join('-')}: ${hex};\n  --${namePath.join('-')}-rgba: ${rgba};`;
+    }
+    
     if (isPlainObject(token.value)) {
         // Expand composite tokens (e.g. typography)
         const valObj = token.value as Record<string, any>;
@@ -71,6 +110,12 @@ const toScssVariables = (tokensObject: object): string => {
   const flatTokens = flattenTokens(tokensObject);
   return flatTokens.map(({ path, token }) => {
     const namePath = path;
+
+    // NEW: Handle Figma Color Objects specially
+    if (isFigmaColorValue(token.value)) {
+        const { hex, rgba } = getFigmaColorStrings(token.value);
+        return `$${namePath.join('-')}: ${hex};\n$${namePath.join('-')}-rgba: ${rgba};`;
+    }
 
     if (isPlainObject(token.value)) {
         // Expand composite tokens

@@ -1,5 +1,8 @@
-
 import { StyleDictionaryToken } from '../types';
+
+export interface TransformOptions {
+  keepFigmaFormat?: boolean;
+}
 
 const isPlainObject = (value: any): boolean => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -136,7 +139,7 @@ const convertFigmaPluginExport = (json: any): any => {
 };
 
 /**
- * Recursively scans an object to find all unique mode keys within token values.
+ * Recursively scans an object to find all unique mode keys within token values or extensions.
  * @param {any} obj - The object to scan.
  * @param {Set<string>} modes - A Set to collect the mode names.
  */
@@ -145,10 +148,7 @@ const findModes = (obj: any, modes: Set<string>): void => {
     return;
   }
 
-  // Heuristic: If an object has a 'value' or '$value' property that is itself a plain object,
-  // and that inner object does *not* look like a token (e.g., doesn't have its own 'value' or '$value' key),
-  // then we assume its keys are mode names.
-  
+  // 1. Check for value-based modes (e.g. { value: { light: "...", dark: "..." } })
   const value = Object.prototype.hasOwnProperty.call(obj, 'value')
     ? obj.value
     : Object.prototype.hasOwnProperty.call(obj, '$value')
@@ -178,11 +178,27 @@ const findModes = (obj: any, modes: Set<string>): void => {
         }
     }
 
+    // Heuristic for Figma Color Objects
+    // These keys indicate the object is a value definition, not a map of modes.
+    if (
+        Object.prototype.hasOwnProperty.call(value, 'hex') ||
+        Object.prototype.hasOwnProperty.call(value, 'colorSpace') ||
+        Object.prototype.hasOwnProperty.call(value, 'components') ||
+        Object.prototype.hasOwnProperty.call(value, 'alpha')
+    ) {
+        isModeMap = false;
+    }
+
     if (isModeMap) {
         Object.keys(value).forEach(key => modes.add(key));
     }
   }
 
+  // 2. Check for extensions-based modes (e.g. { $extensions: { mode: { Web: "...", Mobile: "..." } } })
+  const extensions = obj.extensions || obj.$extensions;
+  if (isPlainObject(extensions) && isPlainObject(extensions.mode)) {
+      Object.keys(extensions.mode).forEach(key => modes.add(key));
+  }
 
   // Recurse into child properties.
   for (const key in obj) {
@@ -199,17 +215,18 @@ const findModes = (obj: any, modes: Set<string>): void => {
  * Recursively traverses an object and transforms it into Style Dictionary format.
  * If a mode is provided, it resolves token values for that specific mode.
  * @param {any} obj - The object or value to process.
+ * @param {TransformOptions} options - Transformation options.
  * @param {string} [mode] - The specific mode to resolve values for.
  * @param {string[]} path - The path to the current object in the JSON tree.
  * @returns {any} The transformed object or value.
  */
-const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any => {
+const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string, path: string[] = []): any => {
   if (!isPlainObject(obj)) {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => traverseAndTransform(item, mode, path));
+    return obj.map(item => traverseAndTransform(item, options, mode, path));
   }
 
   let currentObj = { ...obj };
@@ -224,7 +241,19 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
     delete currentObj.$type;
   }
   
-  // If a mode is specified, resolve the token's value for that specific mode first.
+  // NEW: Resolve extensions-based mode value overrides
+  const extensions = currentObj.extensions || currentObj.$extensions;
+  if (mode && isPlainObject(extensions) && isPlainObject(extensions.mode)) {
+      if (Object.prototype.hasOwnProperty.call(extensions.mode, mode)) {
+          currentObj.value = extensions.mode[mode];
+          // If the override is a string (alias), normalize it
+          if (typeof currentObj.value === 'string') {
+            currentObj.value = normalizeReference(currentObj.value);
+          }
+      }
+  }
+  
+  // If a mode is specified, resolve the token's value for that specific mode first (standard value-based mode).
   if (
     mode &&
     Object.prototype.hasOwnProperty.call(currentObj, 'value') &&
@@ -239,6 +268,11 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
 
   if (isToken) {
     const finalToken = { ...currentObj };
+
+    // Helper: Normalize any string values (including default values) to use dot notation for aliases
+    if (typeof finalToken.value === 'string') {
+        finalToken.value = normalizeReference(finalToken.value);
+    }
 
     const parentKey = path.length > 1 ? path[path.length - 2] : null;
     const grandParentKey = path.length > 2 ? path[path.length - 3] : null;
@@ -287,6 +321,15 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
              }
         }
     }
+    
+    // Standardize Color if not keeping Figma format
+    if (!options.keepFigmaFormat && finalToken.type === 'color' && isPlainObject(finalToken.value)) {
+           const val = finalToken.value as any;
+           // Figma usually provides 'hex' in the object
+           if (val.hex) {
+               finalToken.value = val.hex;
+           }
+    }
 
     // Rule: Handle composite typography tokens (supports both 'typography' and 'textStyle')
     if ((finalToken.type === 'typography' || finalToken.type === 'textStyle') && isPlainObject(finalToken.value)) {
@@ -295,6 +338,11 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
         
         for (const prop of dimensionProps) {
             if (Object.prototype.hasOwnProperty.call(typographyValue, prop)) {
+                // If it's a string, normalize references
+                if (typeof typographyValue[prop] === 'string') {
+                   typographyValue[prop] = normalizeReference(typographyValue[prop]);
+                }
+                // If it's a number, add px
                 if (typeof typographyValue[prop] === 'number') {
                     typographyValue[prop] = `${typographyValue[prop]}px`;
                 }
@@ -306,7 +354,9 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
              const val = typographyValue['fontFamily'];
              if (typeof val === 'string') {
                  const isAlias = val.trim().startsWith('{');
-                 if (!isAlias) {
+                 if (isAlias) {
+                     typographyValue['fontFamily'] = normalizeReference(val);
+                 } else {
                      const hasQuotes = (val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'));
                      if (!hasQuotes) {
                          typographyValue['fontFamily'] = `'${val}'`;
@@ -322,7 +372,7 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
     const newObj: { [key: string]: any } = {};
     for (const key in currentObj) {
       if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
-        newObj[key] = traverseAndTransform(currentObj[key], mode, [...path, key]);
+        newObj[key] = traverseAndTransform(currentObj[key], options, mode, [...path, key]);
       }
     }
     return newObj;
@@ -332,7 +382,7 @@ const traverseAndTransform = (obj: any, mode?: string, path: string[] = []): any
 /**
  * The main transformation function.
  */
-export const transformJsonToStyleDictionary = (jsonString: string): Record<string, object> => {
+export const transformJsonToStyleDictionary = (jsonString: string, options: TransformOptions = {}): Record<string, object> => {
   let parsedJson;
   try {
     parsedJson = JSON.parse(jsonString);
@@ -362,12 +412,12 @@ export const transformJsonToStyleDictionary = (jsonString: string): Record<strin
     const modeList = Array.from(modes);
 
     if (modeList.length === 0) {
-      return { default: traverseAndTransform(parsedJson) };
+      return { default: traverseAndTransform(parsedJson, options) };
     }
 
     const result: Record<string, object> = {};
     for (const mode of modeList) {
-      result[mode] = traverseAndTransform(parsedJson, mode);
+      result[mode] = traverseAndTransform(parsedJson, options, mode);
     }
 
     return result;

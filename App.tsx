@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { transformJsonToStyleDictionary } from './services/transformer';
 import { formatTokensByMode, FORMATS } from './services/formatter';
@@ -14,6 +13,7 @@ import { cn } from './lib/utils';
 const App: React.FC = () => {
   // Store the raw transformed object instead of pre-calculated strings
   const [transformedData, setTransformedData] = useState<Record<string, object> | null>(null);
+  const [rawJson, setRawJson] = useState<string | null>(null);
   
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [outputFormat, setOutputFormat] = useState('json');
@@ -21,38 +21,52 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
   const [excludeParentKeys, setExcludeParentKeys] = useState(true);
+  const [keepFigmaFormat, setKeepFigmaFormat] = useState(false);
   
   // New state for input method
   const [inputType, setInputType] = useState<'upload' | 'paste'>('upload');
   const [pastedJson, setPastedJson] = useState('');
 
-  const processJson = (jsonText: string, sourceFileName: string) => {
-    if (!jsonText || jsonText.trim() === '') {
-        setError('Please provide valid JSON content.');
-        return;
-    }
-
+  const runTransformation = (jsonText: string, keepFigma: boolean, isNewFile: boolean) => {
     try {
-      const transformedObjects = transformJsonToStyleDictionary(jsonText);
+      const transformedObjects = transformJsonToStyleDictionary(jsonText, { keepFigmaFormat: keepFigma });
       
       setTransformedData(transformedObjects);
 
-      const modes = Object.keys(transformedObjects);
-      const firstMode = modes.length > 0 ? modes[0] : null;
-
-      setActiveMode(firstMode);
-      setFileName(sourceFileName);
-      // Reset formatting options when loading new file, but maybe keep excludeParentKeys if desired.
-      // Let's keep outputFormat as is.
+      if (isNewFile) {
+        const modes = Object.keys(transformedObjects);
+        const firstMode = modes.length > 0 ? modes[0] : null;
+        setActiveMode(firstMode);
+      }
+      
       setError(null); // Clear any previous errors on success
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during processing.';
       setError(errorMessage);
       setTransformedData(null);
-      setActiveMode(null);
-      setFileName(null);
+      if (isNewFile) {
+        setActiveMode(null);
+        setFileName(null);
+      }
     }
-  }
+  };
+
+  const handleNewInput = (jsonText: string, sourceFileName: string) => {
+    if (!jsonText || jsonText.trim() === '') {
+        setError('Please provide valid JSON content.');
+        return;
+    }
+    setRawJson(jsonText);
+    setFileName(sourceFileName);
+    runTransformation(jsonText, keepFigmaFormat, true);
+  };
+
+  const handleKeepFigmaFormatChange = (value: boolean) => {
+      setKeepFigmaFormat(value);
+      if (rawJson) {
+          runTransformation(rawJson, value, false);
+      }
+  };
 
   // Dynamically calculate the code string based on current state
   const currentCode = useMemo(() => {
@@ -86,16 +100,16 @@ const App: React.FC = () => {
         setError('File Error: The selected file is empty.');
         return;
       }
-      processJson(text, file.name);
+      handleNewInput(text, file.name);
     };
     reader.onerror = () => {
       setError('File Read Error: The file could not be read. It might be corrupted or you may not have permission to access it.');
     };
     reader.readAsText(file);
-  }, []);
+  }, [keepFigmaFormat]);
 
   const handlePasteConvert = () => {
-    processJson(pastedJson, 'pasted-tokens.json');
+    handleNewInput(pastedJson, 'pasted-tokens.json');
   };
 
   const handleLoadBasicExample = useCallback(() => {
@@ -104,8 +118,8 @@ const App: React.FC = () => {
     const jsonText = JSON.stringify(basicTokens, null, 2);
     setPastedJson(jsonText);
     setInputType('paste'); 
-    processJson(jsonText, 'basic-tokens.json');
-  }, []);
+    handleNewInput(jsonText, 'basic-tokens.json');
+  }, [keepFigmaFormat]);
 
   const handleLoadTypographyExample = useCallback(() => {
     setError(null);
@@ -113,8 +127,8 @@ const App: React.FC = () => {
     const jsonText = JSON.stringify(typographyTokens, null, 2);
     setPastedJson(jsonText);
     setInputType('paste');
-    processJson(jsonText, 'typography-tokens.json');
-  }, []);
+    handleNewInput(jsonText, 'typography-tokens.json');
+  }, [keepFigmaFormat]);
 
   const handleDownload = useCallback(() => {
     if (!currentCode || !fileName || !activeMode) return;
@@ -151,6 +165,7 @@ const App: React.FC = () => {
 
   const handleReset = () => {
     setTransformedData(null);
+    setRawJson(null);
     setActiveMode(null);
     setFileName(null);
     setError(null);
@@ -158,13 +173,14 @@ const App: React.FC = () => {
     setOutputFormat('json');
     setPastedJson('');
     setExcludeParentKeys(true);
+    setKeepFigmaFormat(false);
   };
   
   const modes = transformedData ? Object.keys(transformedData) : [];
   const showTabs = !(modes.length === 1 && modes[0] === 'default');
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
+    <div className="min-h-screen flex flex-col items-center justify-start p-8 sm:p-12 font-sans">
       <div className="w-full max-w-4xl mx-auto space-y-8">
         <header className="text-center space-y-2">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
@@ -284,6 +300,8 @@ const App: React.FC = () => {
                       onChange={(value) => { setOutputFormat(value); setCopyStatus('idle'); }}
                       excludeParentKeys={excludeParentKeys}
                       onExcludeParentKeysChange={setExcludeParentKeys}
+                      keepFigmaFormat={keepFigmaFormat}
+                      onKeepFigmaFormatChange={handleKeepFigmaFormatChange}
                     />
                   </div>
 
