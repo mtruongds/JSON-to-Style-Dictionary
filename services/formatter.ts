@@ -17,11 +17,11 @@ const isFigmaColorValue = (val: any): boolean => {
          ('colorSpace' in val || 'alpha' in val);
 };
 
-const getFigmaColorStrings = (val: any) => {
+const getFigmaColorString = (val: any): string => {
     const { components, alpha } = val;
     // Safety check
     if (!Array.isArray(components) || components.length < 3) {
-        return { hex: '#000000', rgba: 'rgba(0, 0, 0, 1)' };
+        return '#000000';
     }
     
     const r = Math.round(components[0] * 255);
@@ -29,20 +29,15 @@ const getFigmaColorStrings = (val: any) => {
     const b = Math.round(components[2] * 255);
     let a = (alpha !== undefined) ? alpha : 1;
     
-    // Ensure alpha is a clean number (max 2 decimals)
-    a = Math.round(a * 100) / 100;
+    // Ensure alpha is a clean number (max 4 decimals)
+    a = Math.round(a * 10000) / 10000;
 
-    const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
-    
-    let hex = val.hex;
-    // If hex is missing or empty, calculate it
-    if (!hex) {
-        hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    if (a >= 0.9999) {
+        const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    } else {
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
     }
-    
-    const rgba = `rgba(${r}, ${g}, ${b}, ${a})`;
-    
-    return { hex, rgba };
 };
 
 // Helper to strip top-level keys (flattens one level deep)
@@ -88,11 +83,10 @@ const toCssVariables = (tokensObject: object, mode: string, prefix: string): str
     let name = path.join('-');
     if (prefix) name = `${prefix}-${name}`;
 
-    // NEW: Handle Figma Color Objects specially
+    // Note: Transformer normally handles this, but if keepFigmaFormat is true, this handles it.
     if (isFigmaColorValue(token.value)) {
-        const { hex, rgba } = getFigmaColorStrings(token.value);
-        // Returns two lines: standard hex variable and -rgba variable
-        return `  --${name}: ${hex};\n  --${name}-rgba: ${rgba};`;
+        const colorString = getFigmaColorString(token.value);
+        return `  --${name}: ${colorString};`;
     }
     
     if (isPlainObject(token.value)) {
@@ -116,10 +110,9 @@ const toScssVariables = (tokensObject: object, prefix: string): string => {
     let name = path.join('-');
     if (prefix) name = `${prefix}-${name}`;
 
-    // NEW: Handle Figma Color Objects specially
     if (isFigmaColorValue(token.value)) {
-        const { hex, rgba } = getFigmaColorStrings(token.value);
-        return `$${name}: ${hex};\n$${name}-rgba: ${rgba};`;
+        const colorString = getFigmaColorString(token.value);
+        return `$${name}: ${colorString};`;
     }
 
     if (isPlainObject(token.value)) {

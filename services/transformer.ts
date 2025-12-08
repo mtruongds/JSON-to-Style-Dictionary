@@ -19,6 +19,36 @@ const normalizeReference = (val: string): string => {
 };
 
 /**
+ * Helper to convert Figma color object structure to string (Hex or RGBA)
+ */
+const convertFigmaColorToString = (val: any): string | null => {
+  if (
+    isPlainObject(val) &&
+    Array.isArray(val.components) &&
+    val.components.length >= 3
+  ) {
+    const r = Math.round(val.components[0] * 255);
+    const g = Math.round(val.components[1] * 255);
+    const b = Math.round(val.components[2] * 255);
+    let a = val.alpha !== undefined ? val.alpha : 1;
+    
+    // Normalize alpha
+    // Using 4 decimal places for precision, but stripping trailing zeros via parseFloat
+    const normalizedAlpha = parseFloat(a.toFixed(4));
+    
+    if (normalizedAlpha >= 0.9999) {
+        // Return HEX
+        const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    } else {
+        // Return RGBA
+        return `rgba(${r}, ${g}, ${b}, ${normalizedAlpha})`;
+    }
+  }
+  return null;
+};
+
+/**
  * Maps Figma textCase to CSS text-transform
  */
 const mapTextCase = (val: string): string => {
@@ -325,9 +355,14 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     // Standardize Color if not keeping Figma format
     if (!options.keepFigmaFormat && finalToken.type === 'color' && isPlainObject(finalToken.value)) {
            const val = finalToken.value as any;
-           // Figma usually provides 'hex' in the object
-           if (val.hex) {
-               finalToken.value = val.hex;
+           
+           // Check if it is a Figma-style color object (components + colorSpace) and convert to String (Hex or RGBA)
+           const colorString = convertFigmaColorToString(val);
+           if (colorString) {
+             finalToken.value = colorString;
+           } else if (val.hex) {
+             // Fallback: Use hex if available
+             finalToken.value = val.hex;
            }
     }
 
