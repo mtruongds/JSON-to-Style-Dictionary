@@ -231,6 +231,9 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
             finalType = 'fontSize';
         } else if (scopes.includes('FONT_FAMILY')) {
             finalType = 'fontFamily';
+        } else if (scopes.includes('FONT_STYLE')) {
+            const isNumeric = (typeof finalValue === 'number') || (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(Number(finalValue)));
+            finalType = isNumeric ? 'fontWeight' : 'fontStyle';
         }
     }
 
