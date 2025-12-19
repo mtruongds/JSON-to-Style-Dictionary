@@ -19,6 +19,16 @@ const normalizeReference = (val: string): string => {
 };
 
 /**
+ * Helper to ensure font family names are quoted if they are not references
+ */
+const quoteFontFamily = (val: any): any => {
+    if (typeof val === 'string' && val.trim() !== '' && !val.startsWith('{') && !val.startsWith("'") && !val.startsWith('"')) {
+        return `'${val}'`;
+    }
+    return val;
+};
+
+/**
  * Helper to convert Figma color object structure to string (Hex or RGBA)
  */
 const convertFigmaColorToString = (val: any): string | null => {
@@ -89,7 +99,9 @@ const convertFigmaPluginExport = (json: any): any => {
 
             const val: any = {};
 
-            if (style.fontFamily) val.fontFamily = normalizeReference(style.fontFamily);
+            if (style.fontFamily) {
+                val.fontFamily = quoteFontFamily(normalizeReference(style.fontFamily));
+            }
 
             const styleName = style.fontStyle || 'Regular';
             const lowerStyle = styleName.toLowerCase();
@@ -202,10 +214,23 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     let finalType = currentObj.type;
     let finalDescription = currentObj.description;
 
-    // RULE: Process "GAP" scope from extensions before they are stripped
+    // RULE: Process specific Figma scopes from extensions before they are stripped
     if (isPlainObject(extensions) && Array.isArray(extensions['com.figma.scopes'])) {
-        if (extensions['com.figma.scopes'].includes('GAP')) {
+        const scopes = extensions['com.figma.scopes'] as string[];
+        if (scopes.includes('GAP')) {
             finalType = 'spacing';
+        } else if (scopes.includes('CORNER_RADIUS')) {
+            finalType = 'borderRadius';
+        } else if (scopes.includes('WIDTH_HEIGHT')) {
+            finalType = 'dimension';
+        } else if (scopes.includes('LINE_HEIGHT')) {
+            finalType = 'lineHeight';
+        } else if (scopes.includes('LETTER_SPACING')) {
+            finalType = 'letterSpacing';
+        } else if (scopes.includes('FONT_SIZE')) {
+            finalType = 'fontSize';
+        } else if (scopes.includes('FONT_FAMILY')) {
+            finalType = 'fontFamily';
         }
     }
 
@@ -224,6 +249,11 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     const typesThatNeedPxUnit = ['dimension', 'fontSize', 'lineHeight', 'borderRadius', 'spacing', 'letterSpacing'];
     if (typesThatNeedPxUnit.includes(finalType) && typeof finalValue === 'number') finalValue = `${finalValue}px`;
 
+    // Handle FontFamily quoting
+    if (finalType === 'fontFamily') {
+        finalValue = quoteFontFamily(finalValue);
+    }
+
     // Handle Colors - Always transform to string (Hex/RGBA)
     if (finalType === 'color' && isPlainObject(finalValue)) {
            const colorString = convertFigmaColorToString(finalValue);
@@ -240,6 +270,10 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
                 if (typeof typographyValue[prop] === 'string') typographyValue[prop] = normalizeReference(typographyValue[prop]);
                 if (typeof typographyValue[prop] === 'number') typographyValue[prop] = `${typographyValue[prop]}px`;
             }
+        }
+        // Apply quoting to fontFamily within composite types
+        if (typographyValue.fontFamily !== undefined) {
+            typographyValue.fontFamily = quoteFontFamily(typographyValue.fontFamily);
         }
         finalValue = typographyValue;
     }
