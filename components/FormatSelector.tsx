@@ -12,8 +12,6 @@ interface FormatSelectorProps {
   onChange: (value: string) => void;
   excludeParentKeys: boolean;
   onExcludeParentKeysChange: (value: boolean) => void;
-  keepFigmaFormat: boolean;
-  onKeepFigmaFormatChange: (value: boolean) => void;
   prefix: string;
   onPrefixChange: (value: string) => void;
 }
@@ -62,8 +60,6 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
   onChange,
   excludeParentKeys,
   onExcludeParentKeysChange,
-  keepFigmaFormat,
-  onKeepFigmaFormatChange,
   prefix,
   onPrefixChange
 }) => {
@@ -98,13 +94,6 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
         </div>
 
         <div className="flex flex-row flex-wrap items-center gap-6 pl-1">
-            <Switch
-              id="keepFigmaFormat"
-              label="Keep Figma Format"
-              checked={keepFigmaFormat}
-              onCheckedChange={onKeepFigmaFormatChange}
-            />
-            
             <Switch
               id="excludeParentKeys"
               label="Exclude Parent Keys"

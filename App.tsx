@@ -21,16 +21,15 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
   const [excludeParentKeys, setExcludeParentKeys] = useState(true);
-  const [keepFigmaFormat, setKeepFigmaFormat] = useState(false);
   const [prefix, setPrefix] = useState('');
   
   // New state for input method
   const [inputType, setInputType] = useState<'upload' | 'paste'>('upload');
   const [pastedJson, setPastedJson] = useState('');
 
-  const runTransformation = (jsonText: string, keepFigma: boolean, isNewFile: boolean) => {
+  const runTransformation = (jsonText: string, isNewFile: boolean) => {
     try {
-      const transformedObjects = transformJsonToStyleDictionary(jsonText, { keepFigmaFormat: keepFigma });
+      const transformedObjects = transformJsonToStyleDictionary(jsonText);
       
       setTransformedData(transformedObjects);
 
@@ -59,14 +58,7 @@ const App: React.FC = () => {
     }
     setRawJson(jsonText);
     setFileName(sourceFileName);
-    runTransformation(jsonText, keepFigmaFormat, true);
-  };
-
-  const handleKeepFigmaFormatChange = (value: boolean) => {
-      setKeepFigmaFormat(value);
-      if (rawJson) {
-          runTransformation(rawJson, value, false);
-      }
+    runTransformation(jsonText, true);
   };
 
   // Dynamically calculate the code string based on current state
@@ -108,7 +100,7 @@ const App: React.FC = () => {
       setError('File Read Error: The file could not be read. It might be corrupted or you may not have permission to access it.');
     };
     reader.readAsText(file);
-  }, [keepFigmaFormat]);
+  }, []);
 
   const handlePasteConvert = () => {
     handleNewInput(pastedJson, 'pasted-tokens.json');
@@ -121,7 +113,7 @@ const App: React.FC = () => {
     setPastedJson(jsonText);
     setInputType('paste'); 
     handleNewInput(jsonText, 'basic-tokens.json');
-  }, [keepFigmaFormat]);
+  }, []);
 
   const handleLoadTypographyExample = useCallback(() => {
     setError(null);
@@ -130,7 +122,7 @@ const App: React.FC = () => {
     setPastedJson(jsonText);
     setInputType('paste');
     handleNewInput(jsonText, 'typography-tokens.json');
-  }, [keepFigmaFormat]);
+  }, []);
 
   const handleDownload = useCallback(() => {
     if (!currentCode || !fileName || !activeMode) return;
@@ -175,7 +167,6 @@ const App: React.FC = () => {
     setOutputFormat('json');
     setPastedJson('');
     setExcludeParentKeys(true);
-    setKeepFigmaFormat(false);
     setPrefix('');
   };
   
@@ -303,8 +294,6 @@ const App: React.FC = () => {
                       onChange={(value) => { setOutputFormat(value); setCopyStatus('idle'); }}
                       excludeParentKeys={excludeParentKeys}
                       onExcludeParentKeysChange={setExcludeParentKeys}
-                      keepFigmaFormat={keepFigmaFormat}
-                      onKeepFigmaFormatChange={handleKeepFigmaFormatChange}
                       prefix={prefix}
                       onPrefixChange={setPrefix}
                     />

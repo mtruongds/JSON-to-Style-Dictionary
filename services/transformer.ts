@@ -1,7 +1,7 @@
 import { StyleDictionaryToken } from '../types';
 
 export interface TransformOptions {
-  keepFigmaFormat?: boolean;
+  // Option for keeping original Figma format is removed as per request
 }
 
 const isPlainObject = (value: any): boolean => {
@@ -33,7 +33,6 @@ const convertFigmaColorToString = (val: any): string | null => {
     let a = val.alpha !== undefined ? val.alpha : 1;
     
     // Normalize alpha
-    // Using 4 decimal places for precision, but stripping trailing zeros via parseFloat
     const normalizedAlpha = parseFloat(a.toFixed(4));
     
     if (normalizedAlpha >= 0.9999) {
@@ -85,21 +84,13 @@ const convertFigmaPluginExport = (json: any): any => {
             const token: any = {
                 type: 'typography',
                 value: {},
-                description: style.description || '',
-                $extensions: {}
+                description: style.description || ''
             };
-
-            if (style.id) {
-                token.$extensions.styleId = style.id;
-            }
 
             const val: any = {};
 
-            // FontFamily
             if (style.fontFamily) val.fontFamily = normalizeReference(style.fontFamily);
 
-            // FontStyle / FontWeight logic
-            // Input "fontStyle" in this format usually contains the weight name (e.g. "Medium")
             const styleName = style.fontStyle || 'Regular';
             const lowerStyle = styleName.toLowerCase();
             const weights = ['thin', 'extralight', 'light', 'regular', 'medium', 'semibold', 'bold', 'extrabold', 'black'];
@@ -108,10 +99,8 @@ const convertFigmaPluginExport = (json: any): any => {
                 val.fontWeight = `{font.weight.${lowerStyle}}`;
                 val.fontStyle = 'normal';
             } else {
-                // Fallback if it's something like "Italic" or unknown
                 if (lowerStyle.includes('italic')) {
                      val.fontStyle = 'italic';
-                     // Try to extract weight if composite like "Bold Italic"
                      const weightPart = weights.find(w => lowerStyle.includes(w));
                      val.fontWeight = weightPart ? `{font.weight.${weightPart}}` : '400'; 
                 } else {
@@ -120,44 +109,15 @@ const convertFigmaPluginExport = (json: any): any => {
                 }
             }
 
-            // FontSize
-            if (style.fontSize) {
-                val.fontSize = normalizeReference(String(style.fontSize));
-            }
-
-            // LineHeight
-            if (style.lineHeight) {
-                val.lineHeight = normalizeReference(String(style.lineHeight));
-            }
-
-            // LetterSpacing
-            if (style.letterSpacing) {
-                val.letterSpacing = normalizeReference(String(style.letterSpacing));
-            }
-
-            // Paragraph Indent -> text-indent
-            if (style.paragraphIndent !== undefined) {
-                val['text-indent'] = String(style.paragraphIndent);
-            }
-            
-            // Paragraph Spacing -> margin-block-start
-            if (style.paragraphSpacing !== undefined) {
-                val['margin-block-start'] = String(style.paragraphSpacing);
-            }
-
-            // Text Case
-            if (style.textCase) {
-                val['text-transform'] = mapTextCase(style.textCase);
-            } else {
-                val['text-transform'] = 'none';
-            }
-
-            // Text Decoration
-            if (style.textDecoration) {
-                val['text-decoration'] = mapTextDecoration(style.textDecoration);
-            } else {
-                val['text-decoration'] = 'none';
-            }
+            if (style.fontSize) val.fontSize = normalizeReference(String(style.fontSize));
+            if (style.lineHeight) val.lineHeight = normalizeReference(String(style.lineHeight));
+            if (style.letterSpacing) val.letterSpacing = normalizeReference(String(style.letterSpacing));
+            if (style.paragraphIndent !== undefined) val['text-indent'] = String(style.paragraphIndent);
+            if (style.paragraphSpacing !== undefined) val['margin-block-start'] = String(style.paragraphSpacing);
+            if (style.textCase) val['text-transform'] = mapTextCase(style.textCase);
+            else val['text-transform'] = 'none';
+            if (style.textDecoration) val['text-decoration'] = mapTextDecoration(style.textDecoration);
+            else val['text-decoration'] = 'none';
 
             token.value = val;
             textTokens[style.name] = token;
@@ -169,53 +129,26 @@ const convertFigmaPluginExport = (json: any): any => {
 };
 
 /**
- * Recursively scans an object to find all unique mode keys within token values or extensions.
- * @param {any} obj - The object to scan.
- * @param {Set<string>} modes - A Set to collect the mode names.
+ * Recursively scans an object to find all unique mode keys.
  */
 const findModes = (obj: any, modes: Set<string>): void => {
-  if (!isPlainObject(obj)) {
-    return;
-  }
+  if (!isPlainObject(obj)) return;
 
-  // 1. Check for value-based modes (e.g. { value: { light: "...", dark: "..." } })
-  const value = Object.prototype.hasOwnProperty.call(obj, 'value')
-    ? obj.value
-    : Object.prototype.hasOwnProperty.call(obj, '$value')
-    ? obj.$value
-    : undefined;
+  const value = obj.value !== undefined ? obj.value : obj.$value;
+  const type = obj.type !== undefined ? obj.type : obj.$type;
 
-  const type = Object.prototype.hasOwnProperty.call(obj, 'type')
-    ? obj.type
-    : Object.prototype.hasOwnProperty.call(obj, '$type')
-    ? obj.$type
-    : undefined;
-
-  if (
-    isPlainObject(value) &&
-    !Object.prototype.hasOwnProperty.call(value, 'value') &&
-    !Object.prototype.hasOwnProperty.call(value, '$value')
-  ) {
+  if (isPlainObject(value) && value.value === undefined && value.$value === undefined) {
     let isModeMap = true;
-
-    // Heuristic for Composite Tokens (Typography, TextStyle, etc.)
     const compositeTypes = ['typography', 'textStyle', 'border', 'shadow', 'transition', 'blur', 'gradient'];
     
     if (type && compositeTypes.includes(type)) {
-        const hasPrimitiveValues = Object.values(value).some(v => typeof v !== 'object' || v === null);
-        if (hasPrimitiveValues) {
+        if (Object.values(value).some(v => typeof v !== 'object' || v === null)) {
             isModeMap = false;
         }
     }
 
-    // Heuristic for Figma Color Objects
-    // These keys indicate the object is a value definition, not a map of modes.
-    if (
-        Object.prototype.hasOwnProperty.call(value, 'hex') ||
-        Object.prototype.hasOwnProperty.call(value, 'colorSpace') ||
-        Object.prototype.hasOwnProperty.call(value, 'components') ||
-        Object.prototype.hasOwnProperty.call(value, 'alpha')
-    ) {
+    if (Object.prototype.hasOwnProperty.call(value, 'hex') || 
+        Object.prototype.hasOwnProperty.call(value, 'components')) {
         isModeMap = false;
     }
 
@@ -224,240 +157,134 @@ const findModes = (obj: any, modes: Set<string>): void => {
     }
   }
 
-  // 2. Check for extensions-based modes (e.g. { $extensions: { mode: { Web: "...", Mobile: "..." } } })
   const extensions = obj.extensions || obj.$extensions;
   if (isPlainObject(extensions) && isPlainObject(extensions.mode)) {
       Object.keys(extensions.mode).forEach(key => modes.add(key));
   }
 
-  // Recurse into child properties.
   for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      if (key === 'value' || key === '$value' || key === 'type' || key === '$type' || key === 'description') {
-          continue;
-      }
-      findModes(obj[key], modes);
-    }
+    if (key === 'value' || key === '$value' || key === 'type' || key === '$type' || key === 'description') continue;
+    findModes(obj[key], modes);
   }
 };
 
 /**
- * Recursively traverses an object and transforms it into Style Dictionary format.
- * If a mode is provided, it resolves token values for that specific mode.
- * @param {any} obj - The object or value to process.
- * @param {TransformOptions} options - Transformation options.
- * @param {string} [mode] - The specific mode to resolve values for.
- * @param {string[]} path - The path to the current object in the JSON tree.
- * @returns {any} The transformed object or value.
+ * Traverses and transforms JSON, stripping all extensions after processing.
  */
 const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string, path: string[] = []): any => {
-  if (!isPlainObject(obj)) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => traverseAndTransform(item, options, mode, path));
-  }
+  if (!isPlainObject(obj)) return obj;
+  if (Array.isArray(obj)) return obj.map(item => traverseAndTransform(item, options, mode, path));
 
   let currentObj = { ...obj };
 
-  // Rule: Standardize $value and $type to value and type
-  if (Object.prototype.hasOwnProperty.call(currentObj, '$value')) {
-    currentObj.value = currentObj.$value;
-    delete currentObj.$value;
-  }
-  if (Object.prototype.hasOwnProperty.call(currentObj, '$type')) {
-    currentObj.type = currentObj.$type;
-    delete currentObj.$type;
-  }
-  
-  // NEW: Resolve extensions-based mode value overrides
+  // Standardize keys
+  if (currentObj.$value !== undefined) { currentObj.value = currentObj.$value; delete currentObj.$value; }
+  if (currentObj.$type !== undefined) { currentObj.type = currentObj.$type; delete currentObj.$type; }
+  if (currentObj.$description !== undefined) { currentObj.description = currentObj.$description; delete currentObj.$description; }
+
+  // Resolve mode overrides
   const extensions = currentObj.extensions || currentObj.$extensions;
   if (mode && isPlainObject(extensions) && isPlainObject(extensions.mode)) {
-      if (Object.prototype.hasOwnProperty.call(extensions.mode, mode)) {
+      if (extensions.mode[mode] !== undefined) {
           currentObj.value = extensions.mode[mode];
-          // If the override is a string (alias), normalize it
-          if (typeof currentObj.value === 'string') {
-            currentObj.value = normalizeReference(currentObj.value);
-          }
+          if (typeof currentObj.value === 'string') currentObj.value = normalizeReference(currentObj.value);
       }
   }
   
-  // If a mode is specified, resolve the token's value for that specific mode first (standard value-based mode).
-  if (
-    mode &&
-    Object.prototype.hasOwnProperty.call(currentObj, 'value') &&
-    isPlainObject(currentObj.value) &&
-    Object.prototype.hasOwnProperty.call(currentObj.value, mode)
-  ) {
+  if (mode && isPlainObject(currentObj.value) && currentObj.value[mode] !== undefined) {
     currentObj.value = currentObj.value[mode];
   }
   
-  const isToken = Object.prototype.hasOwnProperty.call(currentObj, 'value') &&
-                  Object.prototype.hasOwnProperty.call(currentObj, 'type');
+  const isToken = currentObj.value !== undefined && currentObj.type !== undefined;
 
   if (isToken) {
-    const finalToken = { ...currentObj };
+    let finalValue = currentObj.value;
+    let finalType = currentObj.type;
+    let finalDescription = currentObj.description;
 
-    // Helper: Normalize any string values (including default values) to use dot notation for aliases
-    if (typeof finalToken.value === 'string') {
-        finalToken.value = normalizeReference(finalToken.value);
+    // RULE: Process "GAP" scope from extensions before they are stripped
+    if (isPlainObject(extensions) && Array.isArray(extensions['com.figma.scopes'])) {
+        if (extensions['com.figma.scopes'].includes('GAP')) {
+            finalType = 'spacing';
+        }
     }
 
+    if (typeof finalValue === 'string') finalValue = normalizeReference(finalValue);
+
+    // Contextual type overrides
     const parentKey = path.length > 1 ? path[path.length - 2] : null;
     const grandParentKey = path.length > 2 ? path[path.length - 3] : null;
 
-    if (grandParentKey === 'font' && parentKey === 'letter-spacing' && finalToken.type === 'number') {
-        finalToken.type = 'letterSpacing';
-    } else if (grandParentKey === 'font' && parentKey === 'style' && finalToken.type === 'string') {
-        finalToken.type = 'fontStyle';
-    }
+    if (grandParentKey === 'font' && parentKey === 'letter-spacing' && finalType === 'number') finalType = 'letterSpacing';
+    else if (grandParentKey === 'font' && parentKey === 'style' && finalType === 'string') finalType = 'fontStyle';
     
-    // Transform 'size' type to 'dimension'
-    if (finalToken.type === 'size') {
-        finalToken.type = 'dimension';
-    }
-    
-    if (finalToken.type === 'fontStyle') {
-      return finalToken;
+    if (finalType === 'size') finalType = 'dimension';
+    if (finalType === 'number' && typeof finalValue === 'string' && finalValue.endsWith('px')) finalType = 'dimension';
+
+    const typesThatNeedPxUnit = ['dimension', 'fontSize', 'lineHeight', 'borderRadius', 'spacing', 'letterSpacing'];
+    if (typesThatNeedPxUnit.includes(finalType) && typeof finalValue === 'number') finalValue = `${finalValue}px`;
+
+    // Handle Colors - Always transform to string (Hex/RGBA)
+    if (finalType === 'color' && isPlainObject(finalValue)) {
+           const colorString = convertFigmaColorToString(finalValue);
+           if (colorString) finalValue = colorString;
+           else if (finalValue.hex) finalValue = finalValue.hex;
     }
 
-    if (finalToken.type === 'number' && typeof finalToken.value === 'string' && finalToken.value.endsWith('px')) {
-      finalToken.type = 'dimension';
-    }
-
-    const typesThatNeedPxUnit = [
-      'dimension',
-      'fontSize',
-      'lineHeight',
-      'borderRadius',
-      'spacing',
-      'letterSpacing',
-    ];
-    
-    if (typesThatNeedPxUnit.includes(finalToken.type) && typeof finalToken.value === 'number') {
-      finalToken.value = `${finalToken.value}px`;
-    }
-
-    // Rule: Quote fontFamily values if they are not aliases
-    if (finalToken.type === 'fontFamily' && typeof finalToken.value === 'string') {
-        const val = finalToken.value;
-        // Check if it starts with { (alias)
-        const isAlias = val.trim().startsWith('{');
-        if (!isAlias) {
-             const hasQuotes = (val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'));
-             if (!hasQuotes) {
-                 finalToken.value = `'${val}'`;
-             }
-        }
-    }
-    
-    // Standardize Color if not keeping Figma format
-    if (!options.keepFigmaFormat && finalToken.type === 'color' && isPlainObject(finalToken.value)) {
-           const val = finalToken.value as any;
-           
-           // Check if it is a Figma-style color object (components + colorSpace) and convert to String (Hex or RGBA)
-           const colorString = convertFigmaColorToString(val);
-           if (colorString) {
-             finalToken.value = colorString;
-           } else if (val.hex) {
-             // Fallback: Use hex if available
-             finalToken.value = val.hex;
-           }
-    }
-
-    // Rule: Handle composite typography tokens (supports both 'typography' and 'textStyle')
-    if ((finalToken.type === 'typography' || finalToken.type === 'textStyle') && isPlainObject(finalToken.value)) {
-        const typographyValue = finalToken.value as Record<string, any>;
+    // Handle Composite Typography
+    if ((finalType === 'typography' || finalType === 'textStyle') && isPlainObject(finalValue)) {
+        const typographyValue = { ...finalValue as Record<string, any> };
         const dimensionProps = ['fontSize', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'spacing'];
-        
         for (const prop of dimensionProps) {
-            if (Object.prototype.hasOwnProperty.call(typographyValue, prop)) {
-                // If it's a string, normalize references
-                if (typeof typographyValue[prop] === 'string') {
-                   typographyValue[prop] = normalizeReference(typographyValue[prop]);
-                }
-                // If it's a number, add px
-                if (typeof typographyValue[prop] === 'number') {
-                    typographyValue[prop] = `${typographyValue[prop]}px`;
-                }
+            if (typographyValue[prop] !== undefined) {
+                if (typeof typographyValue[prop] === 'string') typographyValue[prop] = normalizeReference(typographyValue[prop]);
+                if (typeof typographyValue[prop] === 'number') typographyValue[prop] = `${typographyValue[prop]}px`;
             }
         }
-
-        // Handle fontFamily in composite token
-        if (Object.prototype.hasOwnProperty.call(typographyValue, 'fontFamily')) {
-             const val = typographyValue['fontFamily'];
-             if (typeof val === 'string') {
-                 const isAlias = val.trim().startsWith('{');
-                 if (isAlias) {
-                     typographyValue['fontFamily'] = normalizeReference(val);
-                 } else {
-                     const hasQuotes = (val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'));
-                     if (!hasQuotes) {
-                         typographyValue['fontFamily'] = `'${val}'`;
-                     }
-                 }
-             }
-        }
+        finalValue = typographyValue;
     }
     
-    return finalToken;
+    // RETURN CLEAN TOKEN (STRICTLY REMOVE EXTENSIONS)
+    const cleanToken: any = { value: finalValue, type: finalType };
+    if (finalDescription) cleanToken.description = finalDescription;
+    return cleanToken;
 
   } else {
+    // Group logic (Strictly exclude extensions at group level)
     const newObj: { [key: string]: any } = {};
     for (const key in currentObj) {
-      if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
-        newObj[key] = traverseAndTransform(currentObj[key], options, mode, [...path, key]);
-      }
+      if (key === 'extensions' || key === '$extensions') continue;
+      newObj[key] = traverseAndTransform(currentObj[key], options, mode, [...path, key]);
     }
     return newObj;
   }
 };
 
-/**
- * The main transformation function.
- */
 export const transformJsonToStyleDictionary = (jsonString: string, options: TransformOptions = {}): Record<string, object> => {
   let parsedJson;
   try {
     parsedJson = JSON.parse(jsonString);
   } catch (error) {
-    throw new Error('Invalid JSON: The file could not be parsed. Please check for syntax errors like missing commas or quotes.');
+    throw new Error('Invalid JSON: The file could not be parsed.');
   }
 
-  if (!isPlainObject(parsedJson)) {
-    throw new Error('Invalid Structure: The root of the JSON file must be an object.');
+  if (!isPlainObject(parsedJson)) throw new Error('Invalid Structure: Root must be an object.');
+
+  if (Array.isArray(parsedJson.textStyles)) {
+      return { default: convertFigmaPluginExport(parsedJson) };
   }
 
-  // CHECK: Figma Plugin Export Format
-  // If the JSON has a top-level 'textStyles' array, we treat it as the Figma specific format
-  if (Object.prototype.hasOwnProperty.call(parsedJson, 'textStyles') && Array.isArray(parsedJson.textStyles)) {
-      try {
-          // We return a default mode object directly, bypassing standard traversal
-          return { default: convertFigmaPluginExport(parsedJson) };
-      } catch (e) {
-          throw new Error('Error converting Figma plugin format: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
+  const modes = new Set<string>();
+  findModes(parsedJson, modes);
+  const modeList = Array.from(modes);
+
+  if (modeList.length === 0) {
+    return { default: traverseAndTransform(parsedJson, options) };
   }
 
-  try {
-    const modes = new Set<string>();
-    findModes(parsedJson, modes);
-
-    const modeList = Array.from(modes);
-
-    if (modeList.length === 0) {
-      return { default: traverseAndTransform(parsedJson, options) };
-    }
-
-    const result: Record<string, object> = {};
-    for (const mode of modeList) {
-      result[mode] = traverseAndTransform(parsedJson, options, mode);
-    }
-
-    return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'An unknown issue occurred.';
-    throw new Error(`Transformation Error: ${message} Please check the structure of your design tokens.`);
+  const result: Record<string, object> = {};
+  for (const mode of modeList) {
+    result[mode] = traverseAndTransform(parsedJson, options, mode);
   }
+  return result;
 };
