@@ -214,7 +214,16 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     let finalType = currentObj.type;
     let finalDescription = currentObj.description;
 
-    // RULE: Process specific Figma scopes from extensions before they are stripped
+    // RULE: Process alias data from Figma extensions
+    if (isPlainObject(extensions) && isPlainObject(extensions['com.figma.aliasData'])) {
+        const aliasData = extensions['com.figma.aliasData'] as any;
+        if (aliasData.targetVariableName) {
+            const normalizedPath = aliasData.targetVariableName.replace(/\//g, '.');
+            finalValue = `{${normalizedPath}}`;
+        }
+    }
+
+    // RULE: Process specific Figma scopes from extensions
     if (isPlainObject(extensions) && Array.isArray(extensions['com.figma.scopes'])) {
         const scopes = extensions['com.figma.scopes'] as string[];
         if (scopes.includes('GAP')) {
