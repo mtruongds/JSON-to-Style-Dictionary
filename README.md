@@ -12,16 +12,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1N1HKXsysJNvpMSsEyp9naG
 
 **Prerequisites:**  Node.js
 
+
 1. Install dependencies:
    `npm install`
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
-
-**Import:** index.tsx to index.html
-
-```bash
-<div id="root">
-   <script type="module" src="index.tsx"></script> <== Add this line
-</div>
-```
