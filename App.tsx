@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const [fileName, setFileName] =useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
-  const [excludeParentKeys, setExcludeParentKeys] = useState(true);
+  const [excludeParentKeys, setExcludeParentKeys] = useState(false);
   const [prefix, setPrefix] = useState('');
   
   // New state for input method
@@ -166,7 +166,7 @@ const App: React.FC = () => {
     setCopyStatus('idle');
     setOutputFormat('json');
     setPastedJson('');
-    setExcludeParentKeys(true);
+    setExcludeParentKeys(false);
     setPrefix('');
   };
   
