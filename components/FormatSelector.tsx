@@ -14,6 +14,8 @@ interface FormatSelectorProps {
   onExcludeParentKeysChange: (value: boolean) => void;
   prefix: string;
   onPrefixChange: (value: string) => void;
+  colorFormat: 'rgba' | 'oklch';
+  onColorFormatChange: (value: 'rgba' | 'oklch') => void;
 }
 
 interface SwitchProps {
@@ -61,8 +63,12 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
   excludeParentKeys,
   onExcludeParentKeysChange,
   prefix,
-  onPrefixChange
+  onPrefixChange,
+  colorFormat,
+  onColorFormatChange
 }) => {
+  const isColorFormatSupported = value === 'css' || value === 'scss';
+
   return (
     <div className="flex flex-col gap-3 w-full">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -93,7 +99,7 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
           })}
         </div>
 
-        <div className="flex flex-row flex-wrap items-center gap-6 pl-1">
+        <div className="flex flex-row flex-wrap items-center gap-6 pl-1 pt-2 border-t">
             <Switch
               id="excludeParentKeys"
               label="Exclude Parent Keys"
@@ -102,7 +108,7 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
             />
 
             <div className="flex items-center gap-2">
-                <label htmlFor="prefixInput" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <label htmlFor="prefixInput" className="text-sm font-medium leading-none">
                     Prefix
                 </label>
                 <input 
@@ -111,9 +117,37 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
                     value={prefix}
                     onChange={(e) => onPrefixChange(e.target.value)}
                     placeholder="e.g. ds"
-                    className="flex h-8 w-24 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-8 w-24 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
             </div>
+
+            {isColorFormatSupported && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium leading-none">
+                  Color Format
+                </label>
+                <div className="inline-flex h-8 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
+                  <button
+                    onClick={() => onColorFormatChange('rgba')}
+                    className={cn(
+                      "px-2 py-1 text-xs font-medium rounded-sm transition-all",
+                      colorFormat === 'rgba' ? "bg-background text-foreground shadow-sm" : "hover:text-foreground"
+                    )}
+                  >
+                    RGBA
+                  </button>
+                  <button
+                    onClick={() => onColorFormatChange('oklch')}
+                    className={cn(
+                      "px-2 py-1 text-xs font-medium rounded-sm transition-all",
+                      colorFormat === 'oklch' ? "bg-background text-foreground shadow-sm" : "hover:text-foreground"
+                    )}
+                  >
+                    OKLCH
+                  </button>
+                </div>
+              </div>
+            )}
         </div>
       </div>
     </div>
