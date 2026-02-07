@@ -5,16 +5,18 @@ This document outlines the logic used to convert Figma-exported JSON into Style 
 ## 1. Type Mapping (Figma Scopes)
 Figma-specific scopes are mapped to standard token types to ensure correct platform transforms.
 
-| Figma Scope | W3C / Style Dictionary Type |
-| :--- | :--- |
-| `GAP` | `spacing` |
-| `CORNER_RADIUS` | `borderRadius` |
-| `WIDTH_HEIGHT` | `dimension` |
-| `LINE_HEIGHT` | `lineHeight` |
-| `LETTER_SPACING` | `letterSpacing` |
-| `FONT_SIZE` | `fontSize` |
-| `FONT_FAMILY` | `fontFamily` |
-| `FONT_STYLE` | `fontWeight` (if value is 100-900) or `fontStyle` (if "italic", etc.) |
+| Figma Scope | W3C / Style Dictionary Type | Note |
+| :--- | :--- | :--- |
+| `GAP` | `spacing` | |
+| `CORNER_RADIUS` | `borderRadius` | |
+| `WIDTH_HEIGHT` | `dimension` | |
+| `LINE_HEIGHT` | `lineHeight` | |
+| `LETTER_SPACING` | `letterSpacing` | |
+| `FONT_SIZE` | `fontSize` | |
+| `FONT_FAMILY` | `fontFamily` | |
+| `FONT_STYLE` | `fontWeight` (if value is 100-900) or `fontStyle` (if "italic", etc.) | |
+| `OPACITY` | `opacity` | Values are divided by 100 (e.g., 50 -> 0.5) |
+| `STROKE_FLOAT` | `dimension` | |
 
 ## 2. Alias Resolution
 Figma variables often use slashes. These are converted to the dot-notation required by most design token engines.

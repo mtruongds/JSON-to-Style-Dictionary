@@ -243,6 +243,17 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
         } else if (scopes.includes('FONT_STYLE')) {
             const isNumeric = (typeof finalValue === 'number') || (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(Number(finalValue)));
             finalType = isNumeric ? 'fontWeight' : 'fontStyle';
+        } else if (scopes.includes('OPACITY')) {
+            finalType = 'opacity';
+            const isRef = typeof finalValue === 'string' && finalValue.trim().startsWith('{');
+            if (!isRef) {
+                const num = parseFloat(String(finalValue));
+                if (!isNaN(num)) {
+                    finalValue = num / 100;
+                }
+            }
+        } else if (scopes.includes('STROKE_FLOAT')) {
+            finalType = 'dimension';
         }
     }
 
