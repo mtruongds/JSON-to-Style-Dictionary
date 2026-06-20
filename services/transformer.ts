@@ -9,12 +9,27 @@ const isPlainObject = (value: any): boolean => {
 };
 
 /**
- * Helper to normalize references from slash notation to dot notation
+ * Helper to convert a string to kebab-case
+ */
+const toKebabCase = (str: string): string => {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .replace(/[\s_]+/g, '-')
+    .toLowerCase()
+    .replace(/-+/g, '-');
+};
+
+/**
+ * Helper to normalize references from slash notation to dot notation and kebab-case
  * e.g. {font/size/small} -> {font.size.small}
+ * e.g. {color/brandPrimary} -> {color.brand-primary}
  */
 const normalizeReference = (val: string): string => {
     return val.replace(/{([^}]+)}/g, (match, content) => {
-        return `{${content.replace(/\//g, '.')}}`;
+        const parts = content.split(/[\/.]/);
+        const kebabParts = parts.map(toKebabCase);
+        return `{${kebabParts.join('.')}}`;
     });
 };
 
@@ -132,7 +147,7 @@ const convertFigmaPluginExport = (json: any): any => {
             else val['text-decoration'] = 'none';
 
             token.value = val;
-            textTokens[style.name] = token;
+            textTokens[toKebabCase(style.name)] = token;
         });
         result.text = textTokens;
     }
@@ -218,7 +233,7 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     if (isPlainObject(extensions) && isPlainObject(extensions['com.figma.aliasData'])) {
         const aliasData = extensions['com.figma.aliasData'] as any;
         if (aliasData.targetVariableName) {
-            const normalizedPath = aliasData.targetVariableName.replace(/\//g, '.');
+            const normalizedPath = aliasData.targetVariableName.split(/[\/.]/).map(toKebabCase).join('.');
             finalValue = `{${normalizedPath}}`;
         }
     }
@@ -311,7 +326,8 @@ const traverseAndTransform = (obj: any, options: TransformOptions, mode?: string
     const newObj: { [key: string]: any } = {};
     for (const key in currentObj) {
       if (key === 'extensions' || key === '$extensions') continue;
-      newObj[key] = traverseAndTransform(currentObj[key], options, mode, [...path, key]);
+      const kebabKey = toKebabCase(key);
+      newObj[kebabKey] = traverseAndTransform(currentObj[key], options, mode, [...path, kebabKey]);
     }
     return newObj;
   }
